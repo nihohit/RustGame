@@ -1,5 +1,5 @@
 [package]
-name = "RustGame"
+name = "rust_game"
 version = "0.1.0"
 authors = ["Shachar <nihohit@gmail.com>"]
 edition = "2018"
@@ -8,3 +8,13 @@ edition = "2018"
 
 [dependencies]
 bevy = "0.4"
+bevy_ui = "0.4"
+bevy_core = "0.4"
+bevy_text = "0.4"
+bevy_render = "0.4"
+bevy_window = "0.4"
+bevy_winit = "0.4"
+bevy_app = "0.4"
+bevy_internal = "0.4"
+bevy_sprite = "0.4"
+bevy_diagnostic = "0.4"
