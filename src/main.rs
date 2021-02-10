@@ -13,14 +13,18 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup.system())
+        .add_system(keyboard_input_system.system())
         .run();
 }
+
+struct InputText;
 
 fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
     commands
         // 2d camera
         .spawn(CameraUiBundle::default())
-        .spawn(TextBundle {
+        .spawn((InputText,))
+        .with_bundle(TextBundle {
             style: Style {
                 align_self: AlignSelf::Center,
                 position_type: PositionType::Absolute,
@@ -47,4 +51,28 @@ fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
             },
             ..Default::default()
         });
+}
+
+fn keyboard_input_system(keyboard_input: Res<Input<KeyCode>>, mut text_query: Query<Mut<Text>, With<InputText>>) {
+    if keyboard_input.pressed(KeyCode::Up) {
+        for mut text in text_query.iter_mut() {
+            text.value = "Pressing up".to_string();
+        }
+    } else if keyboard_input.pressed(KeyCode::Down) {
+        for mut text in text_query.iter_mut() {
+            text.value = "Pressing down".to_string();
+        }
+    } else if keyboard_input.pressed(KeyCode::Left) {
+        for mut text in text_query.iter_mut() {
+            text.value = "Pressing left".to_string();
+        }
+    } else if keyboard_input.pressed(KeyCode::Right) {
+        for mut text in text_query.iter_mut() {
+            text.value = "Pressing right".to_string();
+        }
+    } else {
+        for mut text in text_query.iter_mut() {
+            text.value = "Nothing Pressed".to_string();
+        }
+    }
 }
