@@ -18,8 +18,14 @@ fn main() {
 }
 
 struct InputText;
+const TILE_SIZE: f32 = 100.0;
 
-fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
+fn setup(commands: &mut Commands, asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<ColorMaterial>>,) {
+    let black_tile = asset_server.load("textures/black_tile.png");
+    let white_tile1 = asset_server.load("textures/white_tile.png");
+    let white_tile2 = asset_server.load("textures/white_tile.png");
+    let player = asset_server.load("textures/player.png");
     commands
         // 2d camera
         .spawn(CameraUiBundle::default())
@@ -49,6 +55,37 @@ fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
                     ..Default::default()
                 },
             },
+            ..Default::default()
+        })
+        .spawn(Camera2dBundle::default())
+        .spawn(SpriteBundle {
+            material: materials.add(black_tile.into()),
+            ..Default::default()
+        })
+        .spawn(SpriteBundle {
+            material: materials.add(white_tile1.into()),
+            transform:Transform{
+                translation:Vec3{
+                    x:-TILE_SIZE,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .spawn(SpriteBundle {
+            material: materials.add(white_tile2.into()),
+            transform:Transform{
+                translation:Vec3{
+                    x:TILE_SIZE,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .spawn(SpriteBundle {
+            material: materials.add(player.into()),
             ..Default::default()
         });
 }
