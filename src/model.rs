@@ -10,7 +10,7 @@ pub enum Advice {
 }
 
 pub struct Tile {
-    color: TileColor,
+    pub color: TileColor,
     advice: Option<Advice>,
     passable: bool
 }
@@ -28,6 +28,29 @@ pub struct Entity {
 }
 
 pub struct Game {
-    tiles: [[Tile; 3]; 3],
+    pub tiles: [[Tile; 3]; 3],
     entities: Vec<Entity>
+}
+
+pub fn create_board() -> Game {
+    return Game{
+        tiles:[
+            [
+                Tile{color:TileColor::White, advice:None, passable:true},
+                Tile{color:TileColor::Black, advice:None, passable:true},
+                Tile{color:TileColor::White, advice:None, passable:true}
+            ],
+            [
+                Tile{color:TileColor::Black, advice:None, passable:true},
+                Tile{color:TileColor::White, advice:None, passable:true},
+                Tile{color:TileColor::Black, advice:None, passable:true}
+            ],
+            [
+                Tile{color:TileColor::White, advice:None, passable:true},
+                Tile{color:TileColor::Black, advice:None, passable:true},
+                Tile{color:TileColor::White, advice:None, passable:true}
+            ]
+        ], 
+        entities:vec![]
+    };
 }
