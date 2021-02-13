@@ -7,48 +7,100 @@ fn main() {
         .add_resource(WindowDescriptor {
             title: "I am a window!".to_string(),
             width: 500.,
-            height: 300.,
+            height: 500.,
             vsync: true,
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup.system())
+        .add_startup_system(setup_ui.system())
+        .add_startup_system(setup_board.system())
         .add_system(keyboard_input_system.system())
         .run();
 }
 
 struct InputText;
+const TILE_SIZE: f32 = 100.0;
 
-fn setup(commands: &mut Commands, asset_server: Res<AssetServer>) {
+fn setup_ui(commands: &mut Commands, asset_server: Res<AssetServer>) {
     commands
-        // 2d camera
-        .spawn(CameraUiBundle::default())
-        .spawn((InputText,))
-        .with_bundle(TextBundle {
-            style: Style {
-                align_self: AlignSelf::Center,
-                position_type: PositionType::Absolute,
-                position: Rect {
-                    bottom: Val::Px(5.0),
-                    left: Val::Px(15.0),
-                    right: Val::Px(15.0),
-                    ..Default::default()
+    // 2d camera
+    .spawn(CameraUiBundle::default())
+    .spawn((InputText,))
+    .with_bundle(TextBundle {
+        style: Style {
+            align_self: AlignSelf::Center,
+            position_type: PositionType::Absolute,
+            position: Rect {
+                bottom: Val::Px(5.0),
+                left: Val::Px(15.0),
+                right: Val::Px(15.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        text: Text {
+            value: "This is where the text appears".to_string(),
+            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+            style: TextStyle {
+                font_size: 30.0,
+                color: Color::WHITE,
+                alignment: TextAlignment {
+                    vertical: VerticalAlign::Bottom,
+                    horizontal: HorizontalAlign::Center,
                 },
                 ..Default::default()
             },
-            text: Text {
-                value: "This is where the text appears".to_string(),
-                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                style: TextStyle {
-                    font_size: 30.0,
-                    color: Color::WHITE,
-                    alignment: TextAlignment {
-                        vertical: VerticalAlign::Bottom,
-                        horizontal: HorizontalAlign::Center,
-                    },
-                    ..Default::default()
+        },
+        ..Default::default()
+    });
+}
+
+fn setup_board(commands: &mut Commands, asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<ColorMaterial>>,) {
+    let black_tile = asset_server.load("textures/black_tile.png");
+    let white_tile = asset_server.load("textures/white_tile.png");
+    let player = asset_server.load("textures/player.png");
+
+    let board = model::create_board();
+
+    commands.spawn(Camera2dBundle::default());
+
+    let middle_row_index:i16 = (board.tiles.len() / 2) as i16;
+    for row_index in 0..board.tiles.len() as i16 {
+        let row = &board.tiles[row_index as usize];
+        let middle_index:i16 = (row.len() / 2) as i16;
+        for tile_index in 0..row.len() as i16 {
+            let tile = &row[tile_index as usize];
+            let transform = Transform {
+                translation: Vec3 {
+                    x: f32::from(tile_index - middle_index) * TILE_SIZE ,
+                    y: f32::from(row_index - middle_row_index) * TILE_SIZE,
+                    z:0.0
                 },
+                ..Default::default()
+            };
+            match tile.color {
+                model::TileColor::Black => {commands.spawn(Camera2dBundle::default())
+                .spawn(SpriteBundle {
+                    material: materials.add(black_tile.clone().into()),
+                    transform: transform,
+                    ..Default::default()
+                });
             },
+            
+            model::TileColor::White => {commands.spawn(Camera2dBundle::default())
+                .spawn(SpriteBundle {
+                    material: materials.add(white_tile.clone().into()),
+                    transform: transform,
+                    ..Default::default()
+                });
+            }
+        }
+        }
+    }
+
+    commands.spawn(SpriteBundle {
+            material: materials.add(player.into()),
             ..Default::default()
         });
 }
