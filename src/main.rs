@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+
 mod model;
 
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
@@ -14,11 +15,21 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_ui.system())
         .add_startup_system(setup_board.system())
+        .add_startup_system_to_stage("post_startup", setup_graphics.system())
         .add_system(keyboard_input_system.system())
+        .add_system(update_transforms.system())
         .run();
 }
 
 struct InputText;
+
+struct Position {
+    x: i16,
+    y: i16
+}
+
+struct Selected;
+
 const TILE_SIZE: f32 = 100.0;
 
 fn setup_ui(commands: &mut Commands, asset_server: Res<AssetServer>) {
@@ -73,17 +84,10 @@ fn setup_board(
 ) {
     let black_tile = asset_server.load("textures/black_tile.png");
     let white_tile = asset_server.load("textures/white_tile.png");
-    let white_piece = asset_server.load("textures/WhitePiece.png");
-    let black_piece = asset_server.load("textures/BlackPiece.png");
 
     let render_tile_material = |entity_type: &model::TileColor| match entity_type {
         model::TileColor::White => white_tile.clone().into(),
         model::TileColor::Black => black_tile.clone().into(),
-    };
-
-    let render_entity_material = |entity_type: &model::EntityType| match entity_type {
-        model::EntityType::WhitePiece => white_piece.clone().into(),
-        model::EntityType::BlackPiece => black_piece.clone().into(),
     };
     let board = model::create_board();
 
@@ -103,14 +107,15 @@ fn setup_board(
                 ..Default::default()
             });
 
-            match &tile.entity {
+            match tile.entity {
                 None => {}
                 Some(entity_type) => {
-                    commands.spawn(SpriteBundle {
-                        material: materials.add(render_entity_material(entity_type)),
-                        transform: transform,
-                        ..Default::default()
-                    });
+                    commands.spawn((entity_type, Position{x: tile_index - middle_index, y: row_index - middle_row_index}));
+                    // SpriteBundle {
+                        // material: materials.add(render_entity_material(entity_type)),
+                        // transform: transform,
+                        // ..Default::default()
+                    // }
                 }
             }
         }
@@ -118,14 +123,37 @@ fn setup_board(
 
     let row = board.tiles[board.player.x as usize];
     let middle_index: i16 = (row.len() / 2) as i16;
-    commands.spawn(SpriteBundle {
-        material: materials.add(render_entity_material(&board.player.entity_type)),
-        transform: coords_to_transform(
-            board.player.x - middle_index,
-            board.player.y - middle_row_index,
-        ),
-        ..Default::default()
-    });
+    commands.spawn((board.player.entity_type, Position{x: board.player.x - middle_index, y: board.player.y - middle_row_index}, Selected));
+}
+
+fn setup_graphics(
+    commands: &mut Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    pieces: Query<(Entity, &model::EntityType, &Position)>
+) {
+    let white_piece = asset_server.load("textures/WhitePiece.png");
+    let black_piece = asset_server.load("textures/BlackPiece.png");
+
+    let render_entity_material = |entity_type: &model::EntityType| match entity_type {
+        model::EntityType::WhitePiece => white_piece.clone().into(),
+        model::EntityType::BlackPiece => black_piece.clone().into(),
+    };
+    for (entity, entity_type, position) in pieces.iter() {
+        commands.insert(entity,
+            SpriteBundle {
+                material: materials.add(render_entity_material(entity_type)),
+                ..Default::default()
+            });
+    }
+}
+
+fn update_transforms(
+    mut transforms_query: Query<(&Position, &mut Transform)>,
+) {
+    for (position, mut transform) in transforms_query.iter_mut() {
+        *transform = coords_to_transform(position.x, position.y);
+    }
 }
 
 fn keyboard_input_system(
