@@ -15,8 +15,8 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_ui.system())
         .add_startup_system(setup_board.system())
-        .add_startup_system_to_stage("post_startup", setup_graphics.system())
-        .add_system(keyboard_input_system.system())
+        .add_startup_system_to_stage("post_startup", setup_piece_transforms.system())
+        .add_system(keyboard_input.system())
         .add_system(update_transforms.system())
         .run();
 }
@@ -111,11 +111,6 @@ fn setup_board(
                 None => {}
                 Some(entity_type) => {
                     commands.spawn((entity_type, Position{x: tile_index - middle_index, y: row_index - middle_row_index}));
-                    // SpriteBundle {
-                        // material: materials.add(render_entity_material(entity_type)),
-                        // transform: transform,
-                        // ..Default::default()
-                    // }
                 }
             }
         }
@@ -126,7 +121,7 @@ fn setup_board(
     commands.spawn((board.player.entity_type, Position{x: board.player.x - middle_index, y: board.player.y - middle_row_index}, Selected));
 }
 
-fn setup_graphics(
+fn setup_piece_transforms(
     commands: &mut Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -156,29 +151,25 @@ fn update_transforms(
     }
 }
 
-fn keyboard_input_system(
+fn keyboard_input(
     keyboard_input: Res<Input<KeyCode>>,
-    mut text_query: Query<Mut<Text>, With<InputText>>,
+    mut selected_query: Query<Mut<Position>, With<Selected>>,
 ) {
-    if keyboard_input.pressed(KeyCode::Up) {
-        for mut text in text_query.iter_mut() {
-            text.value = "Pressing up".to_string();
+    if keyboard_input.just_pressed(KeyCode::Up) {
+        for mut position in selected_query.iter_mut() {
+            position.y += 1;
         }
-    } else if keyboard_input.pressed(KeyCode::Down) {
-        for mut text in text_query.iter_mut() {
-            text.value = "Pressing down".to_string();
+    } else if keyboard_input.just_pressed(KeyCode::Down) {
+        for mut position in selected_query.iter_mut() {
+            position.y -= 1;
         }
-    } else if keyboard_input.pressed(KeyCode::Left) {
-        for mut text in text_query.iter_mut() {
-            text.value = "Pressing left".to_string();
+    } else if keyboard_input.just_pressed(KeyCode::Left) {
+        for mut position in selected_query.iter_mut() {
+            position.x -= 1;
         }
-    } else if keyboard_input.pressed(KeyCode::Right) {
-        for mut text in text_query.iter_mut() {
-            text.value = "Pressing right".to_string();
-        }
-    } else {
-        for mut text in text_query.iter_mut() {
-            text.value = "Nothing Pressed".to_string();
+    } else if keyboard_input.just_pressed(KeyCode::Right) {
+        for mut position in selected_query.iter_mut() {
+            position.x += 1;
         }
     }
 }
