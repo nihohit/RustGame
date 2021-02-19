@@ -25,7 +25,7 @@ struct InputText;
 
 struct Position {
     x: i16,
-    y: i16
+    y: i16,
 }
 
 struct Selected;
@@ -110,7 +110,13 @@ fn setup_board(
             match tile.entity {
                 None => {}
                 Some(entity_type) => {
-                    commands.spawn((entity_type, Position{x: tile_index - middle_index, y: row_index - middle_row_index}));
+                    commands.spawn((
+                        entity_type,
+                        Position {
+                            x: tile_index - middle_index,
+                            y: row_index - middle_row_index,
+                        },
+                    ));
                 }
             }
         }
@@ -118,14 +124,21 @@ fn setup_board(
 
     let row = board.tiles[board.player.x as usize];
     let middle_index: i16 = (row.len() / 2) as i16;
-    commands.spawn((board.player.entity_type, Position{x: board.player.x - middle_index, y: board.player.y - middle_row_index}, Selected));
+    commands.spawn((
+        board.player.entity_type,
+        Position {
+            x: board.player.x - middle_index,
+            y: board.player.y - middle_row_index,
+        },
+        Selected,
+    ));
 }
 
 fn setup_piece_transforms(
     commands: &mut Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    pieces: Query<(Entity, &model::EntityType, &Position)>
+    pieces: Query<(Entity, &model::EntityType)>,
 ) {
     let white_piece = asset_server.load("textures/WhitePiece.png");
     let black_piece = asset_server.load("textures/BlackPiece.png");
@@ -134,18 +147,18 @@ fn setup_piece_transforms(
         model::EntityType::WhitePiece => white_piece.clone().into(),
         model::EntityType::BlackPiece => black_piece.clone().into(),
     };
-    for (entity, entity_type, position) in pieces.iter() {
-        commands.insert(entity,
+    for (entity, entity_type) in pieces.iter() {
+        commands.insert(
+            entity,
             SpriteBundle {
                 material: materials.add(render_entity_material(entity_type)),
                 ..Default::default()
-            });
+            },
+        );
     }
 }
 
-fn update_transforms(
-    mut transforms_query: Query<(&Position, &mut Transform)>,
-) {
+fn update_transforms(mut transforms_query: Query<(&Position, &mut Transform)>) {
     for (position, mut transform) in transforms_query.iter_mut() {
         *transform = coords_to_transform(position.x, position.y);
     }
