@@ -31,6 +31,10 @@ struct Position {
 struct Selected;
 
 const TILE_SIZE: f32 = 100.0;
+const MAX_X_POSITOIN: i16 = 1;
+const MAX_Y_POSITOIN: i16 = 1;
+const MIN_X_POSITOIN: i16 = -1;
+const MIN_Y_POSITOIN: i16 = -1;
 
 fn setup_ui(commands: &mut Commands, asset_server: Res<AssetServer>) {
     commands
@@ -166,23 +170,37 @@ fn update_transforms(mut transforms_query: Query<(&Position, &mut Transform)>) {
 
 fn keyboard_input(
     keyboard_input: Res<Input<KeyCode>>,
-    mut selected_query: Query<Mut<Position>, With<Selected>>,
+    mut selected_query: Query<(Entity, &model::EntityType, Mut<Position>), With<Selected>>,
 ) {
+    let mut x_offset: i16 = 0;
+    let mut y_offset: i16 = 0;
     if keyboard_input.just_pressed(KeyCode::Up) {
-        for mut position in selected_query.iter_mut() {
-            position.y += 1;
+        y_offset = y_offset + 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::Down) {
+        y_offset = y_offset - 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::Left) {
+        x_offset = x_offset - 1;
+    }
+    if keyboard_input.just_pressed(KeyCode::Right) {
+        x_offset = x_offset + 1;
+    }
+    for (_, entity_type, mut position) in selected_query.iter_mut() {
+        let next_position = Position {
+            x: position.x + x_offset,
+            y: position.y + y_offset,
+        };
+        let is_diagonal = model::is_diagonal_movement(x_offset, y_offset);
+        if (!model::can_move(*entity_type, is_diagonal))
+            || next_position.x > MAX_X_POSITOIN
+            || next_position.x < MIN_X_POSITOIN
+            || next_position.y > MAX_Y_POSITOIN
+            || next_position.y < MIN_Y_POSITOIN
+        {
+            continue;
         }
-    } else if keyboard_input.just_pressed(KeyCode::Down) {
-        for mut position in selected_query.iter_mut() {
-            position.y -= 1;
-        }
-    } else if keyboard_input.just_pressed(KeyCode::Left) {
-        for mut position in selected_query.iter_mut() {
-            position.x -= 1;
-        }
-    } else if keyboard_input.just_pressed(KeyCode::Right) {
-        for mut position in selected_query.iter_mut() {
-            position.x += 1;
-        }
+        position.x = next_position.x;
+        position.y = next_position.y;
     }
 }
