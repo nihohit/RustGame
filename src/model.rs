@@ -109,14 +109,18 @@ pub fn create_board() -> Game {
     };
 }
 
-fn can_move(player: EntityType, is_diagonal_movement: bool) -> bool {
+pub fn is_diagonal_movement(x_offset: i16, y_offset: i16) -> bool {
+    return x_offset != 0 && y_offset != 0;
+}
+
+pub fn can_move(player: EntityType, is_diagonal_movement: bool) -> bool {
     match player {
         EntityType::BlackPiece => return is_diagonal_movement,
         EntityType::WhitePiece => return !is_diagonal_movement,
     }
 }
 
-fn can_eat(player: EntityType, is_diagonal_movement: bool) -> bool {
+pub fn can_eat(player: EntityType, is_diagonal_movement: bool) -> bool {
     match player {
         EntityType::BlackPiece => return !is_diagonal_movement,
         EntityType::WhitePiece => return is_diagonal_movement,
@@ -124,7 +128,7 @@ fn can_eat(player: EntityType, is_diagonal_movement: bool) -> bool {
 }
 
 fn try_move(board: Game, x_offset: i16, y_offset: i16) -> Option<Game> {
-    let is_diagonal = x_offset != 0 && y_offset != 0;
+    let is_diagonal = is_diagonal_movement(x_offset, y_offset);
     let player = board.player;
     let x_target_signed = player.x + x_offset;
     let y_target_signed = player.y + y_offset;
