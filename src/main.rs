@@ -15,7 +15,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_ui.system())
         .add_startup_system(setup_board.system())
-        .add_startup_system_to_stage("post_startup", setup_piece_transforms.system())
+        .add_startup_system_to_stage("post_startup", setup_piece_sprites.system())
         .add_system(keyboard_input.system())
         .add_system(update_transforms.system())
         .run();
@@ -23,18 +23,13 @@ fn main() {
 
 struct InputText;
 
-struct Position {
-    x: i16,
-    y: i16,
-}
-
 struct Selected;
 
 const TILE_SIZE: f32 = 100.0;
-const MAX_X_POSITOIN: i16 = 1;
-const MAX_Y_POSITOIN: i16 = 1;
-const MIN_X_POSITOIN: i16 = -1;
-const MIN_Y_POSITOIN: i16 = -1;
+const MAX_X_POSITION: i16 = 2;
+const MAX_Y_POSITION: i16 = 2;
+const MIN_X_POSITION: i16 = 0;
+const MIN_Y_POSITION: i16 = 0;
 
 fn setup_ui(commands: &mut Commands, asset_server: Res<AssetServer>) {
     commands
@@ -73,8 +68,8 @@ fn setup_ui(commands: &mut Commands, asset_server: Res<AssetServer>) {
 fn coords_to_transform(x: i16, y: i16) -> Transform {
     return Transform {
         translation: Vec3 {
-            x: f32::from(x) * TILE_SIZE,
-            y: f32::from(y) * TILE_SIZE,
+            x: f32::from(x - 1) * TILE_SIZE,
+            y: f32::from(y - 1) * TILE_SIZE,
             z: 0.0,
         },
         ..Default::default()
@@ -89,7 +84,7 @@ fn setup_board(
     let black_tile = asset_server.load("textures/black_tile.png");
     let white_tile = asset_server.load("textures/white_tile.png");
 
-    let render_tile_material = |entity_type: &model::TileColor| match entity_type {
+    let render_tile_material = |piece_type: &model::TileColor| match piece_type {
         model::TileColor::White => white_tile.clone().into(),
         model::TileColor::Black => black_tile.clone().into(),
     };
@@ -97,80 +92,63 @@ fn setup_board(
 
     commands.spawn(Camera2dBundle::default());
 
-    let middle_row_index: i16 = (board.tiles.len() / 2) as i16;
     for row_index in 0..board.tiles.len() as i16 {
         let row = &board.tiles[row_index as usize];
-        let middle_index: i16 = (row.len() / 2) as i16;
         for tile_index in 0..row.len() as i16 {
             let tile = &row[tile_index as usize];
-            let transform =
-                coords_to_transform(tile_index - middle_index, row_index - middle_row_index);
+            let transform = coords_to_transform(tile_index, row_index);
             commands.spawn(SpriteBundle {
                 material: materials.add(render_tile_material(&tile.color)),
                 transform: transform,
                 ..Default::default()
             });
-
-            match tile.entity {
-                None => {}
-                Some(entity_type) => {
-                    commands.spawn((
-                        entity_type,
-                        Position {
-                            x: tile_index - middle_index,
-                            y: row_index - middle_row_index,
-                        },
-                    ));
-                }
-            }
         }
     }
 
-    let row = board.tiles[board.player.x as usize];
-    let middle_index: i16 = (row.len() / 2) as i16;
-    commands.spawn((
-        board.player.entity_type,
-        Position {
-            x: board.player.x - middle_index,
-            y: board.player.y - middle_row_index,
-        },
-        Selected,
-    ));
+    let middle_index: i16 = (board.tiles[0].len() / 2) as i16;
+    for (i, piece) in board.pieces.iter().enumerate() {
+        commands.spawn((piece.clone(),));
+        if i == 0 {
+            commands.with(Selected);
+        }
+    }
 }
 
-fn setup_piece_transforms(
+fn setup_piece_sprites(
     commands: &mut Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    pieces: Query<(Entity, &model::EntityType)>,
+    pieces: Query<(Entity, &model::Piece)>,
 ) {
     let white_piece = asset_server.load("textures/WhitePiece.png");
     let black_piece = asset_server.load("textures/BlackPiece.png");
 
-    let render_entity_material = |entity_type: &model::EntityType| match entity_type {
-        model::EntityType::WhitePiece => white_piece.clone().into(),
-        model::EntityType::BlackPiece => black_piece.clone().into(),
+    let render_piece_material = |piece_type: model::PieceType| match piece_type {
+        model::PieceType::WhitePiece => white_piece.clone().into(),
+        model::PieceType::BlackPiece => black_piece.clone().into(),
     };
-    for (entity, entity_type) in pieces.iter() {
+    for (entity, piece) in pieces.iter() {
         commands.insert(
             entity,
             SpriteBundle {
-                material: materials.add(render_entity_material(entity_type)),
+                material: materials.add(render_piece_material(piece.piece_type)),
                 ..Default::default()
             },
         );
     }
 }
 
-fn update_transforms(mut transforms_query: Query<(&Position, &mut Transform)>) {
-    for (position, mut transform) in transforms_query.iter_mut() {
-        *transform = coords_to_transform(position.x, position.y);
+fn update_transforms(mut transforms_query: Query<(&model::Piece, &mut Transform)>) {
+    for (piece, mut transform) in transforms_query.iter_mut() {
+        *transform = coords_to_transform(piece.x, piece.y);
     }
 }
 
 fn keyboard_input(
+    commands: &mut Commands,
     keyboard_input: Res<Input<KeyCode>>,
-    mut selected_query: Query<(Entity, &model::EntityType, Mut<Position>), With<Selected>>,
+    selected_query: Query<(Entity,), With<Selected>>,
+    mut pieces_query: Query<(Entity, &mut model::Piece)>,
 ) {
     let mut x_offset: i16 = 0;
     let mut y_offset: i16 = 0;
@@ -186,21 +164,31 @@ fn keyboard_input(
     if keyboard_input.just_pressed(KeyCode::Right) {
         x_offset = x_offset + 1;
     }
-    for (_, entity_type, mut position) in selected_query.iter_mut() {
-        let next_position = Position {
-            x: position.x + x_offset,
-            y: position.y + y_offset,
-        };
-        let is_diagonal = model::is_diagonal_movement(x_offset, y_offset);
-        if (!model::can_move(*entity_type, is_diagonal))
-            || next_position.x > MAX_X_POSITOIN
-            || next_position.x < MIN_X_POSITOIN
-            || next_position.y > MAX_Y_POSITOIN
-            || next_position.y < MIN_Y_POSITOIN
-        {
-            continue;
+    if x_offset == 0 && y_offset == 0 {
+        return;
+    }
+    let selected_entity = selected_query.iter().next().unwrap().0;
+    let selected_piece = pieces_query.get_mut(selected_entity).unwrap().1.clone();
+
+    let move_result = model::try_move(
+        selected_piece,
+        x_offset,
+        y_offset,
+        pieces_query
+            .iter_mut()
+            .map(|(entity, piece)| (entity, *piece)),
+    );
+
+    match move_result {
+        model::MoveResult::Nothing => {}
+        model::MoveResult::Move => {
+            let mut piece = pieces_query.get_mut(selected_entity).unwrap().1;
+            piece.x += x_offset;
+            piece.y += y_offset;
         }
-        position.x = next_position.x;
-        position.y = next_position.y;
+        model::MoveResult::Control { id_to_control } => {
+            commands.despawn(selected_entity);
+            commands.insert_one(id_to_control, Selected);
+        }
     }
 }
