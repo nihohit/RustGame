@@ -1,3 +1,5 @@
+use std::ops::{Deref};
+
 #[derive(Clone, Copy)]
 pub enum TileColor {
     Black,
@@ -140,14 +142,15 @@ pub fn can_eat(player: PieceType, is_diagonal_movement: bool) -> bool {
     }
 }
 
-pub fn try_move<EntityID, I>(
+pub fn try_move<EntityID, I, P>(
     selected: Piece,
     x_offset: i16,
     y_offset: i16,
     pieces: I,
 ) -> MoveResult<EntityID>
 where
-    I: Iterator<Item = (EntityID, Piece)>,
+    I: Iterator<Item = (EntityID, P)>,
+    P: Deref<Target = Piece>
 {
     let next_x = selected.x + x_offset;
     let next_y = selected.y + y_offset;
