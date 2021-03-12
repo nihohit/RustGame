@@ -176,7 +176,6 @@ fn keyboard_input(
         y_offset,
         pieces_query
             .iter_mut()
-            .map(|(entity, piece)| (entity, *piece)),
     );
 
     match move_result {
