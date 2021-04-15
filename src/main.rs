@@ -5,7 +5,7 @@ mod model;
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
 fn main() {
     App::build()
-        .add_resource(WindowDescriptor {
+        .insert_resource(WindowDescriptor {
             title: "I am a window!".to_string(),
             width: 500.,
             height: 500.,
@@ -15,28 +15,22 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_ui.system())
         .add_startup_system(setup_board.system())
-        .add_startup_system_to_stage("post_startup", setup_piece_sprites.system())
+        .add_startup_system_to_stage(StartupStage::PostStartup, setup_piece_sprites.system())
         .add_system(keyboard_input.system())
         .add_system(update_transforms.system())
         .run();
 }
 
 struct InputText;
-
 struct Selected;
 
 const TILE_SIZE: f32 = 100.0;
-const MAX_X_POSITION: i16 = 2;
-const MAX_Y_POSITION: i16 = 2;
-const MIN_X_POSITION: i16 = 0;
-const MIN_Y_POSITION: i16 = 0;
 
-fn setup_ui(commands: &mut Commands, asset_server: Res<AssetServer>) {
+fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // 2d camera
+    commands.spawn_bundle(UiCameraBundle::default());
     commands
-        // 2d camera
-        .spawn(CameraUiBundle::default())
-        .spawn((InputText,))
-        .with_bundle(TextBundle {
+        .spawn_bundle(TextBundle {
             style: Style {
                 align_self: AlignSelf::Center,
                 position_type: PositionType::Absolute,
@@ -48,36 +42,37 @@ fn setup_ui(commands: &mut Commands, asset_server: Res<AssetServer>) {
                 },
                 ..Default::default()
             },
-            text: Text {
-                value: "This is where the text appears".to_string(),
-                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                style: TextStyle {
+            text: Text::with_section(
+                "This is where the text appears".to_string(),
+                TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 30.0,
                     color: Color::WHITE,
-                    alignment: TextAlignment {
-                        vertical: VerticalAlign::Bottom,
-                        horizontal: HorizontalAlign::Center,
-                    },
                     ..Default::default()
                 },
-            },
+                TextAlignment {
+                    vertical: VerticalAlign::Bottom,
+                    horizontal: HorizontalAlign::Center,
+                },
+            ),
             ..Default::default()
-        });
+        })
+        .insert(InputText);
 }
 
-fn coords_to_transform(x: i16, y: i16) -> Transform {
+fn coords_to_transform(x: i16, y: i16, z: f32) -> Transform {
     return Transform {
-        translation: Vec3 {
-            x: f32::from(x - 1) * TILE_SIZE,
-            y: f32::from(y - 1) * TILE_SIZE,
-            z: 0.0,
-        },
+        translation: Vec3::new(
+            f32::from(x - 1) * TILE_SIZE,
+            f32::from(y - 1) * TILE_SIZE,
+            0.0,
+        ),
         ..Default::default()
     };
 }
 
 fn setup_board(
-    commands: &mut Commands,
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -90,14 +85,14 @@ fn setup_board(
     };
     let board = model::create_board();
 
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
     for row_index in 0..board.tiles.len() as i16 {
         let row = &board.tiles[row_index as usize];
         for tile_index in 0..row.len() as i16 {
             let tile = &row[tile_index as usize];
-            let transform = coords_to_transform(tile_index, row_index);
-            commands.spawn(SpriteBundle {
+            let transform = coords_to_transform(tile_index, row_index, 0.0);
+            commands.spawn_bundle(SpriteBundle {
                 material: materials.add(render_tile_material(&tile.color)),
                 transform: transform,
                 ..Default::default()
@@ -105,17 +100,16 @@ fn setup_board(
         }
     }
 
-    let middle_index: i16 = (board.tiles[0].len() / 2) as i16;
     for (i, piece) in board.pieces.iter().enumerate() {
-        commands.spawn((piece.clone(),));
+        let mut entity_commands = commands.spawn_bundle((piece.clone(),));
         if i == 0 {
-            commands.with(Selected);
+            entity_commands.insert(Selected);
         }
     }
 }
 
 fn setup_piece_sprites(
-    commands: &mut Commands,
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     pieces: Query<(Entity, &model::Piece)>,
@@ -128,24 +122,21 @@ fn setup_piece_sprites(
         model::PieceType::BlackPiece => black_piece.clone().into(),
     };
     for (entity, piece) in pieces.iter() {
-        commands.insert(
-            entity,
-            SpriteBundle {
-                material: materials.add(render_piece_material(piece.piece_type)),
-                ..Default::default()
-            },
-        );
+        commands.entity(entity).insert_bundle(SpriteBundle {
+            material: materials.add(render_piece_material(piece.piece_type)),
+            ..Default::default()
+        });
     }
 }
 
 fn update_transforms(mut transforms_query: Query<(&model::Piece, &mut Transform)>) {
     for (piece, mut transform) in transforms_query.iter_mut() {
-        *transform = coords_to_transform(piece.x, piece.y);
+        *transform = coords_to_transform(piece.x, piece.y, 1.0);
     }
 }
 
 fn keyboard_input(
-    commands: &mut Commands,
+    mut commands: Commands,
     keyboard_input: Res<Input<KeyCode>>,
     selected_query: Query<(Entity,), With<Selected>>,
     mut pieces_query: Query<(Entity, &mut model::Piece)>,
@@ -170,13 +161,7 @@ fn keyboard_input(
     let selected_entity = selected_query.iter().next().unwrap().0;
     let selected_piece = pieces_query.get_mut(selected_entity).unwrap().1.clone();
 
-    let move_result = model::try_move(
-        selected_piece,
-        x_offset,
-        y_offset,
-        pieces_query
-            .iter_mut()
-    );
+    let move_result = model::try_move(selected_piece, x_offset, y_offset, pieces_query.iter_mut());
 
     match move_result {
         model::MoveResult::Nothing => {}
@@ -186,8 +171,8 @@ fn keyboard_input(
             piece.y += y_offset;
         }
         model::MoveResult::Control { id_to_control } => {
-            commands.despawn(selected_entity);
-            commands.insert_one(id_to_control, Selected);
+            commands.entity(selected_entity).despawn();
+            commands.entity(id_to_control).insert(Selected);
         }
     }
 }
