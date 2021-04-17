@@ -10,25 +10,34 @@ fn main() {
     App::build()
         .insert_resource(WindowDescriptor {
             title: "I am a window!".to_string(),
-            width: 1920.,
-            height: 1080.,
+            width: 800.,
+            height: 800.,
             vsync: false,
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_boids.system())
-        .add_system(coherence.system().label(Calculations))
-        // .add_system(separation.system().label(Calculations))
+        .add_system(coherence_update.system().label(Calculations))
+        .add_system(separation_update.system().label(Calculations))
         // .add_system(alignment.system().label(Calculations))
         .add_system(final_update.system().after(Calculations))
         .run();
 }
 
-struct Boid {
-    coherence_result: Vec2,
-    separation_result: Vec2,
-    alignemnt_result: Vec2,
-    velocity: Vec2,
+struct Coherence {
+    center: Vec2,
+}
+
+struct Separation {
+    center: Vec2,
+}
+
+struct Alignment {
+    direction: Vec2,
+}
+
+struct Velocity {
+    direction: Vec2,
 }
 
 fn setup_boids(
@@ -54,40 +63,73 @@ fn setup_boids(
                 transform: transform,
                 ..Default::default()
             })
-            .insert(Boid {
-                coherence_result: Vec2::ZERO,
-                separation_result: Vec2::ZERO,
-                alignemnt_result: velocity,
-                velocity: velocity,
+            .insert(Coherence { center: Vec2::ZERO })
+            .insert(Separation { center: Vec2::ZERO })
+            .insert(Alignment {
+                direction: Vec2::ZERO,
+            })
+            .insert(Velocity {
+                direction: velocity,
             });
     }
 }
 
-fn coherence(
-    mut boids: Query<(Entity, &Transform, &mut Boid)>,
+const COHERENCE_DISTANCE: f32 = 50.0;
+const SEPARATION_DISTANCE: f32 = 10.0;
+
+fn coherence_update(
+    mut boids: Query<(Entity, &Transform, &mut Coherence)>,
     other_boids: Query<(Entity, &Transform)>,
 ) {
-    const COHERENCE_DISTANCE: f32 = 20.0;
-    for (entity, transform, mut boid) in boids.iter_mut() {
-        let mut coherence = Vec3::ZERO;
+    for (entity, transform, mut coherence) in boids.iter_mut() {
+        let mut new_center = Vec3::ZERO;
         let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
+            let distance = transform.translation.distance(other_transform.translation);
             if other_entity != entity
-                && transform.translation.distance(other_transform.translation) < COHERENCE_DISTANCE
+                && distance < COHERENCE_DISTANCE
+                && distance > SEPARATION_DISTANCE
             {
-                coherence += other_transform.translation;
+                new_center += other_transform.translation;
                 count += 1.0;
             }
         }
-        boid.coherence_result = vec2(coherence.x / count, coherence.y / count);
+        coherence.center = vec2(new_center.x / count, new_center.y / count);
     }
 }
 
-fn final_update(mut boids: Query<(&mut Transform, &mut Boid)>, time: Res<Time>) {
+fn separation_update(
+    mut boids: Query<(Entity, &Transform, &mut Separation)>,
+    other_boids: Query<(Entity, &Transform)>,
+) {
+    for (entity, transform, mut separation) in boids.iter_mut() {
+        let mut new_center = Vec3::ZERO;
+        let mut count: f32 = 0.0;
+        for (other_entity, other_transform) in other_boids.iter() {
+            let distance = transform.translation.distance(other_transform.translation);
+            if other_entity != entity && distance <= SEPARATION_DISTANCE {
+                new_center += other_transform.translation;
+                count += 1.0;
+            }
+        }
+        separation.center = vec2(new_center.x / count, new_center.y / count);
+    }
+}
+
+fn final_update(
+    mut boids: Query<(
+        &mut Transform,
+        &Coherence,
+        &Separation,
+        &Alignment,
+        &Velocity,
+    )>,
+    time: Res<Time>,
+) {
     let delta: f32 = (time.delta().as_millis()) as f32 / 1000.0;
-    for (mut transform, boid) in boids.iter_mut() {
+    for (mut transform, coherence, separation, alignment, velocity) in boids.iter_mut() {
         let current_location = vec2(transform.translation.x, transform.translation.y);
-        let change = boid.velocity + boid.coherence_result - current_location;
+        let change = velocity.direction + coherence.center - current_location;
         transform.translation.x += change.x * delta;
         transform.translation.y += change.y * delta;
     }
