@@ -68,24 +68,27 @@ fn coherence(
     other_boids: Query<(Entity, &Transform)>,
 ) {
     const COHERENCE_DISTANCE: f32 = 20.0;
-    for (entity, transform, boid) in boids.iter_mut() {
+    for (entity, transform, mut boid) in boids.iter_mut() {
         let mut coherence = Vec3::ZERO;
-        let mut count = 0;
+        let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
             if other_entity != entity
                 && transform.translation.distance(other_transform.translation) < COHERENCE_DISTANCE
             {
                 coherence += other_transform.translation;
-                count += 1;
+                count += 1.0;
             }
         }
+        boid.coherence_result = vec2(coherence.x / count, coherence.y / count);
     }
 }
 
 fn final_update(mut boids: Query<(&mut Transform, &mut Boid)>, time: Res<Time>) {
     let delta: f32 = (time.delta().as_millis()) as f32 / 1000.0;
     for (mut transform, boid) in boids.iter_mut() {
-        transform.translation.x += boid.velocity.x * delta;
-        transform.translation.y += boid.velocity.y * delta;
+        let current_location = vec2(transform.translation.x, transform.translation.y);
+        let change = boid.velocity + boid.coherence_result - current_location;
+        transform.translation.x += change.x * delta;
+        transform.translation.y += change.y * delta;
     }
 }
