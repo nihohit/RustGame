@@ -19,7 +19,7 @@ fn main() {
         .add_startup_system(setup_boids.system())
         .add_system(coherence_update.system().label(Calculations))
         .add_system(separation_update.system().label(Calculations))
-        // .add_system(alignment.system().label(Calculations))
+        .add_system(alignment_update.system().label(Calculations))
         .add_system(final_update.system().after(Calculations))
         .run();
 }
@@ -50,7 +50,7 @@ fn setup_boids(
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let mut rng = thread_rng();
-    for i in 0..BOID_COUNT {
+    for _ in 0..BOID_COUNT {
         let transform = Transform::from_xyz(
             rng.gen_range(-500.0..500.0),
             rng.gen_range(-500.0..500.0),
@@ -82,7 +82,7 @@ fn coherence_update(
     other_boids: Query<(Entity, &Transform)>,
 ) {
     for (entity, transform, mut coherence) in boids.iter_mut() {
-        let mut new_center = Vec3::ZERO;
+        let mut new_center = Vec2::ZERO;
         let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
@@ -90,11 +90,15 @@ fn coherence_update(
                 && distance < COHERENCE_DISTANCE
                 && distance > SEPARATION_DISTANCE
             {
-                new_center += other_transform.translation;
+                new_center += Vec2::from(other_transform.translation);
                 count += 1.0;
             }
         }
-        coherence.center = vec2(new_center.x / count, new_center.y / count);
+        coherence.center = if count == 0.0 {
+            new_center
+        } else {
+            new_center / count
+        };
     }
 }
 
@@ -103,16 +107,50 @@ fn separation_update(
     other_boids: Query<(Entity, &Transform)>,
 ) {
     for (entity, transform, mut separation) in boids.iter_mut() {
-        let mut new_center = Vec3::ZERO;
+        let mut new_center = Vec2::ZERO;
         let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
             if other_entity != entity && distance <= SEPARATION_DISTANCE {
-                new_center += other_transform.translation;
+                new_center += Vec2::from(other_transform.translation);
                 count += 1.0;
             }
         }
-        separation.center = vec2(new_center.x / count, new_center.y / count);
+        separation.center = if count == 0.0 {
+            new_center
+        } else {
+            new_center / count
+        };
+    }
+}
+
+fn alignment_update(
+    mut boids: Query<(Entity, &Transform, &mut Alignment)>,
+    other_boids: Query<(Entity, &Transform, &Velocity)>,
+) {
+    for (entity, transform, mut alignment) in boids.iter_mut() {
+        let mut new_velocity = Vec2::ZERO;
+        let mut count: f32 = 0.0;
+        for (other_entity, other_transform, other_velocity) in other_boids.iter() {
+            let distance = transform.translation.distance(other_transform.translation);
+            if other_entity != entity && distance < COHERENCE_DISTANCE {
+                new_velocity += other_velocity.direction;
+                count += 1.0;
+            }
+        }
+        alignment.direction = if count == 0.0 {
+            new_velocity
+        } else {
+            new_velocity / count
+        };
+    }
+}
+
+fn normalize_or_zero(vec: Vec2) -> Vec2 {
+    if vec == Vec2::ZERO {
+        return vec;
+    } else {
+        return vec.normalize();
     }
 }
 
@@ -122,15 +160,18 @@ fn final_update(
         &Coherence,
         &Separation,
         &Alignment,
-        &Velocity,
+        &mut Velocity,
     )>,
     time: Res<Time>,
 ) {
     let delta: f32 = (time.delta().as_millis()) as f32 / 1000.0;
-    for (mut transform, coherence, separation, alignment, velocity) in boids.iter_mut() {
+    for (mut transform, coherence, separation, alignment, mut velocity) in boids.iter_mut() {
         let current_location = vec2(transform.translation.x, transform.translation.y);
-        let change = velocity.direction + coherence.center - current_location;
-        transform.translation.x += change.x * delta;
-        transform.translation.y += change.y * delta;
+        let coherence_change = normalize_or_zero(coherence.center - current_location);
+        let separation_change = normalize_or_zero(current_location - separation.center);
+        velocity.direction =
+            velocity.direction + separation_change + coherence_change + alignment.direction;
+        transform.translation.x += velocity.direction.x * delta;
+        transform.translation.y += velocity.direction.y * delta;
     }
 }
