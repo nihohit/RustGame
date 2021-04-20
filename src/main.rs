@@ -45,15 +45,15 @@ fn setup_boids(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let boid = asset_server.load("textures/black_tile.png");
+    let boid = asset_server.load("textures/Arrow.png");
     const BOID_COUNT: i16 = 200;
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let mut rng = thread_rng();
     for _ in 0..BOID_COUNT {
         let transform = Transform::from_xyz(
-            rng.gen_range(-500.0..500.0),
-            rng.gen_range(-500.0..500.0),
+            rng.gen_range(-400.0..400.0),
+            rng.gen_range(-400.0..400.0),
             0.0,
         );
         let velocity = vec2(rng.gen_range(-10.0..10.0), rng.gen_range(-10.0..10.0));
@@ -169,9 +169,12 @@ fn final_update(
         let current_location = vec2(transform.translation.x, transform.translation.y);
         let coherence_change = normalize_or_zero(coherence.center - current_location);
         let separation_change = normalize_or_zero(current_location - separation.center);
-        velocity.direction =
-            velocity.direction + separation_change + coherence_change + alignment.direction;
+        velocity.direction +=
+            normalize_or_zero((separation_change + coherence_change * 10.0) + alignment.direction)
+                / 2.0;
         transform.translation.x += velocity.direction.x * delta;
         transform.translation.y += velocity.direction.y * delta;
+        let direction = normalize_or_zero(Vec2::from(velocity.direction));
+        transform.rotation = Quat::from_rotation_z(-direction.angle_between(Vec2::Y));
     }
 }
