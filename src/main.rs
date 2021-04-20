@@ -1,3 +1,5 @@
+use bevy::diagnostic::Diagnostics;
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::math::vec2;
 use bevy::prelude::*;
 use rand::prelude::*;
@@ -5,7 +7,7 @@ use rand::prelude::*;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
 struct Calculations;
 
-const HALF_SIZE: f32 = 400.;
+const HALF_SIZE: f32 = 500.;
 
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
 fn main() {
@@ -18,11 +20,14 @@ fn main() {
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(setup_boids.system())
+        .add_startup_system(setup_ui.system())
         .add_system(coherence_update.system().label(Calculations))
         .add_system(separation_update.system().label(Calculations))
         .add_system(alignment_update.system().label(Calculations))
         .add_system(final_update.system().after(Calculations))
+        .add_system(text_update.system())
         .run();
 }
 
@@ -42,13 +47,54 @@ struct Velocity {
     direction: Vec2,
 }
 
+// A unit struct to help identify the FPS UI component, since there may be many Text components
+struct FpsText;
+
+fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // UI camera
+    commands.spawn_bundle(UiCameraBundle::default());
+    // Rich text with multiple sections
+    commands
+        .spawn_bundle(TextBundle {
+            style: Style {
+                align_self: AlignSelf::FlexEnd,
+                ..Default::default()
+            },
+            // Use `Text` directly
+            text: Text {
+                // Construct a `Vec` of `TextSection`s
+                sections: vec![
+                    TextSection {
+                        value: "FPS: ".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 60.0,
+                            color: Color::WHITE,
+                        },
+                    },
+                    TextSection {
+                        value: "".to_string(),
+                        style: TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 60.0,
+                            color: Color::GOLD,
+                        },
+                    },
+                ],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .insert(FpsText);
+}
+
 fn setup_boids(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let boid = asset_server.load("textures/Arrow.png");
-    const BOID_COUNT: i16 = 200;
+    const BOID_COUNT: i16 = 400;
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let mut rng = thread_rng();
@@ -197,5 +243,16 @@ fn final_update(
 
         let direction = normalize_or_zero(velocity.direction);
         transform.rotation = Quat::from_rotation_z(-direction.angle_between(Vec2::Y));
+    }
+}
+
+fn text_update(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<FpsText>>) {
+    for mut text in query.iter_mut() {
+        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(average) = fps.average() {
+                // Update the value of the second section
+                text.sections[1].value = format!("{:.2}", average);
+            }
+        }
     }
 }
