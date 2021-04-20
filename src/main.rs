@@ -5,13 +5,15 @@ use rand::prelude::*;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
 struct Calculations;
 
+const HALF_SIZE: f32 = 400.;
+
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
 fn main() {
     App::build()
         .insert_resource(WindowDescriptor {
             title: "I am a window!".to_string(),
-            width: 800.,
-            height: 800.,
+            width: HALF_SIZE * 2.0,
+            height: HALF_SIZE * 2.0,
             vsync: false,
             ..Default::default()
         })
@@ -52,8 +54,8 @@ fn setup_boids(
     let mut rng = thread_rng();
     for _ in 0..BOID_COUNT {
         let transform = Transform::from_xyz(
-            rng.gen_range(-400.0..400.0),
-            rng.gen_range(-400.0..400.0),
+            rng.gen_range(-HALF_SIZE..HALF_SIZE),
+            rng.gen_range(-HALF_SIZE..HALF_SIZE),
             0.0,
         );
         let velocity = vec2(rng.gen_range(-10.0..10.0), rng.gen_range(-10.0..10.0));
@@ -86,10 +88,7 @@ fn coherence_update(
         let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
-            if other_entity != entity
-                && distance < COHERENCE_DISTANCE
-                && distance > SEPARATION_DISTANCE
-            {
+            if other_entity != entity && distance < COHERENCE_DISTANCE {
                 new_center += Vec2::from(other_transform.translation);
                 count += 1.0;
             }
@@ -154,6 +153,8 @@ fn normalize_or_zero(vec: Vec2) -> Vec2 {
     }
 }
 
+const MAX_SPEED: f32 = 75.0;
+
 fn final_update(
     mut boids: Query<(
         &mut Transform,
@@ -170,11 +171,31 @@ fn final_update(
         let coherence_change = normalize_or_zero(coherence.center - current_location);
         let separation_change = normalize_or_zero(current_location - separation.center);
         velocity.direction +=
-            normalize_or_zero((separation_change + coherence_change * 10.0) + alignment.direction)
-                / 2.0;
+            normalize_or_zero((separation_change + coherence_change * 10.0) + alignment.direction);
+
+        //limit max speed
+        if velocity.direction.distance(Vec2::ZERO) > MAX_SPEED {
+            velocity.direction = velocity.direction.normalize() * MAX_SPEED;
+        }
+
         transform.translation.x += velocity.direction.x * delta;
         transform.translation.y += velocity.direction.y * delta;
-        let direction = normalize_or_zero(Vec2::from(velocity.direction));
+
+        // bind to torus
+        if transform.translation.x < -HALF_SIZE {
+            transform.translation.x = HALF_SIZE;
+        }
+        if transform.translation.x > HALF_SIZE {
+            transform.translation.x = -HALF_SIZE;
+        }
+        if transform.translation.y < -HALF_SIZE {
+            transform.translation.y = HALF_SIZE;
+        }
+        if transform.translation.y > HALF_SIZE {
+            transform.translation.y = -HALF_SIZE;
+        }
+
+        let direction = normalize_or_zero(velocity.direction);
         transform.rotation = Quat::from_rotation_z(-direction.angle_between(Vec2::Y));
     }
 }
