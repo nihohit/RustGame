@@ -88,8 +88,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(FpsText);
 }
 
-const MAX_SPEED: f32 = 100.0;
-const COHERENCE_DISTANCE: f32 = 75.0;
+const COHERENCE_DISTANCE: f32 = 100.0;
 const SEPARATION_DISTANCE: f32 = 15.0;
 
 fn setup_boids(
@@ -204,13 +203,18 @@ fn final_update(
     )>,
     time: Res<Time>,
 ) {
+    const SEPARATION_FACTOR: f32 = 0.1;
+    const COHERENCE_FACTOR: f32 = 0.005;
+    const ALIGNMENT_FACTOR: f32 = 0.05;
+    const MAX_SPEED: f32 = 100.0;
     let delta: f32 = (time.delta().as_millis()) as f32 / 1000.0;
     for (mut transform, coherence, separation, alignment, mut velocity) in boids.iter_mut() {
         let current_location = vec2(transform.translation.x, transform.translation.y);
         let coherence_change = coherence.center - current_location;
         let separation_change = separation.center;
-        velocity.direction +=
-            separation_change * 0.05 + coherence_change * 0.005 + alignment.direction * 0.05;
+        velocity.direction += separation_change * SEPARATION_FACTOR
+            + coherence_change * COHERENCE_FACTOR
+            + alignment.direction * ALIGNMENT_FACTOR;
 
         //limit max speed
         if velocity.direction.length() > MAX_SPEED {
