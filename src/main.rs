@@ -88,6 +88,10 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(FpsText);
 }
 
+const MAX_SPEED: f32 = 100.0;
+const COHERENCE_DISTANCE: f32 = 75.0;
+const SEPARATION_DISTANCE: f32 = 15.0;
+
 fn setup_boids(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -104,7 +108,6 @@ fn setup_boids(
             rng.gen_range(-HALF_SIZE..HALF_SIZE),
             0.0,
         );
-        let velocity = vec2(rng.gen_range(-10.0..10.0), rng.gen_range(-10.0..10.0));
         commands
             .spawn_bundle(SpriteBundle {
                 material: materials.add(boid.clone().into()),
@@ -117,13 +120,10 @@ fn setup_boids(
                 direction: Vec2::ZERO,
             })
             .insert(Velocity {
-                direction: velocity,
+                direction: Vec2::ZERO,
             });
     }
 }
-
-const COHERENCE_DISTANCE: f32 = 50.0;
-const SEPARATION_DISTANCE: f32 = 10.0;
 
 fn coherence_update(
     mut boids: Query<(Entity, &Transform, &mut Coherence)>,
@@ -153,19 +153,14 @@ fn separation_update(
 ) {
     for (entity, transform, mut separation) in boids.iter_mut() {
         let mut new_center = Vec2::ZERO;
-        let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
-            let distance = transform.translation.distance(other_transform.translation);
+            let offset = transform.translation - other_transform.translation;
+            let distance = offset.length();
             if other_entity != entity && distance <= SEPARATION_DISTANCE {
-                new_center += Vec2::from(other_transform.translation);
-                count += 1.0;
+                new_center += Vec2::from(offset);
             }
         }
-        separation.center = if count == 0.0 {
-            new_center
-        } else {
-            new_center / count
-        };
+        separation.center = new_center;
     }
 }
 
@@ -179,7 +174,7 @@ fn alignment_update(
         for (other_entity, other_transform, other_velocity) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
             if other_entity != entity && distance < COHERENCE_DISTANCE {
-                new_velocity += other_velocity.direction;
+                new_velocity += other_velocity.direction * distance / COHERENCE_DISTANCE;
                 count += 1.0;
             }
         }
@@ -199,8 +194,6 @@ fn normalize_or_zero(vec: Vec2) -> Vec2 {
     }
 }
 
-const MAX_SPEED: f32 = 75.0;
-
 fn final_update(
     mut boids: Query<(
         &mut Transform,
@@ -214,13 +207,13 @@ fn final_update(
     let delta: f32 = (time.delta().as_millis()) as f32 / 1000.0;
     for (mut transform, coherence, separation, alignment, mut velocity) in boids.iter_mut() {
         let current_location = vec2(transform.translation.x, transform.translation.y);
-        let coherence_change = normalize_or_zero(coherence.center - current_location);
-        let separation_change = normalize_or_zero(current_location - separation.center);
+        let coherence_change = coherence.center - current_location;
+        let separation_change = separation.center;
         velocity.direction +=
-            normalize_or_zero((separation_change + coherence_change * 10.0) + alignment.direction);
+            separation_change * 0.05 + coherence_change * 0.005 + alignment.direction * 0.05;
 
         //limit max speed
-        if velocity.direction.distance(Vec2::ZERO) > MAX_SPEED {
+        if velocity.direction.length() > MAX_SPEED {
             velocity.direction = velocity.direction.normalize() * MAX_SPEED;
         }
 
