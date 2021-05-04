@@ -2,12 +2,121 @@ use bevy::diagnostic::Diagnostics;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::math::vec2;
 use bevy::prelude::*;
+use bevy::ui::*;
+use bevy_render::{
+    draw::Draw,
+    mesh::Mesh,
+    pipeline::{RenderPipeline, RenderPipelines},
+    prelude::Visible,
+};
+use bevy::ecs::{
+    system::{EntityCommands},
+};
+use bevy_sprite::{ColorMaterial, QUAD_HANDLE};
 use rand::prelude::*;
+
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
 struct Calculations;
 
 const HALF_SIZE: f32 = 500.;
+
+#[derive(Clone, Debug)]
+struct Slider {
+    min: f32,
+    max: f32,
+    value: f32,
+}
+
+#[derive(Bundle, Clone, Debug)]
+struct SliderBundle {
+    pub node: Node,
+    pub slider: Slider,
+    pub style: Style,
+    pub interaction: Interaction,
+    pub focus_policy: FocusPolicy,
+    pub mesh: Handle<Mesh>, // TODO: maybe abstract this out
+    pub material: Handle<ColorMaterial>,
+    pub draw: Draw,
+    pub visible: Visible,
+    pub render_pipelines: RenderPipelines,
+    pub transform: Transform,
+    pub global_transform: GlobalTransform,
+}
+
+impl Default for SliderBundle {
+    fn default() -> Self {
+        SliderBundle {
+            slider: Slider{min: 0f32, max: 1f32, value: 0f32},
+            mesh: QUAD_HANDLE.typed(),
+            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                UI_PIPELINE_HANDLE.typed(),
+            )]),
+            interaction: Default::default(),
+            focus_policy: Default::default(),
+            node: Default::default(),
+            style: Default::default(),
+            material: Default::default(),
+            draw: Default::default(),
+            visible: Visible {
+                is_transparent: true,
+                ..Default::default()
+            },
+            transform: Default::default(),
+            global_transform: Default::default(),
+        }
+    }
+}
+
+
+trait SpawnSlider<'a> {
+    fn spawn_slider<'b>(&'b mut self) -> EntityCommands<'a, 'b>;
+}
+
+impl<'a> SpawnSlider<'a> for Commands<'a> {
+    fn spawn_slider<'b>(&'b mut self) -> EntityCommands<'a, 'b> {
+        let mut entity_commands = self
+            .spawn_bundle(SliderBundle {
+                // transform: Transform::from_xyz(
+                    // 100.0,
+                    // 100.0,
+                    // 0.0,
+                // ),
+                style: Style {
+                    size: Size::new(Val::Px(150.0), Val::Px(150.0)),
+                    // center button
+                    margin: Rect::all(Val::Auto),
+                    // horizontally center child text
+                    justify_content: JustifyContent::Center,
+                    // vertically center child text
+                    align_items: AlignItems::Center,
+                    display: Display::Flex,
+                    align_self: AlignSelf::Center,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+        // entity_commands
+            // .with_children(|parent| {
+                // parent.spawn_bundle(ButtonBundle {
+                    // style: Style {
+                        // size: Size::new(Val::Px(50.0), Val::Px(50.0)),
+                        // // center button
+                        // margin: Rect::all(Val::Auto),
+                        // // horizontally center child text
+                        // justify_content: JustifyContent::Center,
+                        // // vertically center child text
+                        // align_items: AlignItems::Center,
+                        // ..Default::default()
+                    // },
+                    // ..Default::default()
+                // });
+            // });
+
+        return entity_commands;
+    }
+}
+
 
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
 fn main() {
@@ -53,11 +162,13 @@ struct FpsText;
 fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     // UI camera
     commands.spawn_bundle(UiCameraBundle::default());
+
     // Rich text with multiple sections
     commands
         .spawn_bundle(TextBundle {
             style: Style {
-                align_self: AlignSelf::FlexEnd,
+                align_self: AlignSelf::Center,
+                display: Display::None,
                 ..Default::default()
             },
             // Use `Text` directly
@@ -86,6 +197,8 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..Default::default()
         })
         .insert(FpsText);
+
+    commands.spawn_slider();
 }
 
 const COHERENCE_DISTANCE: f32 = 100.0;
@@ -97,7 +210,7 @@ fn setup_boids(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let boid = asset_server.load("textures/Arrow.png");
-    const BOID_COUNT: i16 = 400;
+    const BOID_COUNT: i16 = 10;
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let mut rng = thread_rng();
@@ -248,7 +361,7 @@ fn text_update(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<F
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {
                 // Update the value of the second section
-                text.sections[1].value = format!("{:.2}", average);
+                text.sections[1].value = format!("{:.0}", 999.0 - average);
             }
         }
     }
