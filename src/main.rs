@@ -1,5 +1,6 @@
 use bevy::diagnostic::Diagnostics;
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::ecs::system::EntityCommands;
 use bevy::math::vec2;
 use bevy::prelude::*;
 use bevy::ui::*;
@@ -9,17 +10,15 @@ use bevy_render::{
     pipeline::{RenderPipeline, RenderPipelines},
     prelude::Visible,
 };
-use bevy::ecs::{
-    system::{EntityCommands},
-};
 use bevy_sprite::{ColorMaterial, QUAD_HANDLE};
 use rand::prelude::*;
-
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
 struct Calculations;
 
 const HALF_SIZE: f32 = 500.;
+
+struct SliderButton;
 
 #[derive(Clone, Debug)]
 struct Slider {
@@ -47,7 +46,11 @@ struct SliderBundle {
 impl Default for SliderBundle {
     fn default() -> Self {
         SliderBundle {
-            slider: Slider{min: 0f32, max: 1f32, value: 0f32},
+            slider: Slider {
+                min: 0f32,
+                max: 1f32,
+                value: 0f32,
+            },
             mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 UI_PIPELINE_HANDLE.typed(),
@@ -68,55 +71,56 @@ impl Default for SliderBundle {
     }
 }
 
-
 trait SpawnSlider<'a> {
-    fn spawn_slider<'b>(&'b mut self) -> EntityCommands<'a, 'b>;
+    fn spawn_slider<'b>(
+        &'b mut self,
+        materials: &mut Assets<ColorMaterial>,
+    ) -> EntityCommands<'a, 'b>;
 }
 
 impl<'a> SpawnSlider<'a> for Commands<'a> {
-    fn spawn_slider<'b>(&'b mut self) -> EntityCommands<'a, 'b> {
-        let mut entity_commands = self
-            .spawn_bundle(SliderBundle {
-                // transform: Transform::from_xyz(
-                    // 100.0,
-                    // 100.0,
-                    // 0.0,
-                // ),
-                style: Style {
-                    size: Size::new(Val::Px(150.0), Val::Px(150.0)),
-                    // center button
-                    margin: Rect::all(Val::Auto),
-                    // horizontally center child text
-                    justify_content: JustifyContent::Center,
-                    // vertically center child text
-                    align_items: AlignItems::Center,
-                    display: Display::Flex,
-                    align_self: AlignSelf::Center,
+    fn spawn_slider<'b>(
+        &'b mut self,
+        materials: &mut Assets<ColorMaterial>,
+    ) -> EntityCommands<'a, 'b> {
+        let mut entity_commands = self.spawn_bundle(SliderBundle {
+            style: Style {
+                size: Size::new(Val::Px(300.0), Val::Px(20.0)),
+                position: Rect {
+                    left: Val::Px(300.0),
+                    top: Val::Px(100.0),
                     ..Default::default()
                 },
+                position_type: PositionType::Absolute,
+                justify_content: JustifyContent::Center,
                 ..Default::default()
-            });
-        // entity_commands
-            // .with_children(|parent| {
-                // parent.spawn_bundle(ButtonBundle {
-                    // style: Style {
-                        // size: Size::new(Val::Px(50.0), Val::Px(50.0)),
-                        // // center button
-                        // margin: Rect::all(Val::Auto),
-                        // // horizontally center child text
-                        // justify_content: JustifyContent::Center,
-                        // // vertically center child text
-                        // align_items: AlignItems::Center,
-                        // ..Default::default()
-                    // },
-                    // ..Default::default()
-                // });
-            // });
+            },
+            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            ..Default::default()
+        });
+        entity_commands.with_children(|parent| {
+            parent
+                .spawn_bundle(ButtonBundle {
+                    style: Style {
+                        size: Size::new(Val::Px(50.0), Val::Px(50.0)),
+                        position: Rect {
+                            // left: Val::Px(125.0),
+                            top: Val::Px(-15.0),
+                            ..Default::default()
+                        },
+                        justify_content: JustifyContent::Center,
+                        position_type: PositionType::Absolute,
+                        ..Default::default()
+                    },
+                    material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
+                    ..Default::default()
+                })
+                .insert(SliderButton);
+        });
 
         return entity_commands;
     }
 }
-
 
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
 fn main() {
@@ -135,8 +139,10 @@ fn main() {
         .add_system(coherence_update.system().label(Calculations))
         .add_system(separation_update.system().label(Calculations))
         .add_system(alignment_update.system().label(Calculations))
-        .add_system(final_update.system().after(Calculations))
         .add_system(text_update.system())
+        .add_system(slider_update.system().label(Calculations))
+        .add_system(final_update.system().after(Calculations))
+        .add_system(slider_button_position_update.system().after(Calculations))
         .run();
 }
 
@@ -159,7 +165,11 @@ struct Velocity {
 // A unit struct to help identify the FPS UI component, since there may be many Text components
 struct FpsText;
 
-fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup_ui(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     // UI camera
     commands.spawn_bundle(UiCameraBundle::default());
 
@@ -198,7 +208,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         })
         .insert(FpsText);
 
-    commands.spawn_slider();
+    commands.spawn_slider(&mut materials);
 }
 
 const COHERENCE_DISTANCE: f32 = 100.0;
@@ -210,7 +220,7 @@ fn setup_boids(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let boid = asset_server.load("textures/Arrow.png");
-    const BOID_COUNT: i16 = 10;
+    const BOID_COUNT: i16 = 200;
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let mut rng = thread_rng();
@@ -364,5 +374,52 @@ fn text_update(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<F
                 text.sections[1].value = format!("{:.0}", 999.0 - average);
             }
         }
+    }
+}
+
+fn slider_update(
+    mut slider_query: Query<
+        (
+            &Interaction,
+            &mut Slider,
+            &GlobalTransform,
+            &Node,
+            &Children,
+        ),
+        Changed<Interaction>,
+    >,
+    button_query: Query<&Interaction, With<SliderButton>>,
+    windows: Res<Windows>,
+) {
+    let win = windows.get_primary().expect("no primary window");
+    if let Some(mouse_xy) = win.cursor_position() {
+        for (slider_interaction, mut slider, slider_transform, slider_node, children) in
+            slider_query.iter_mut()
+        {
+            let button_interaction = button_query.get(children[0]).unwrap();
+            if *slider_interaction != Interaction::Clicked
+                && *button_interaction != Interaction::Clicked
+            {
+                continue;
+            }
+            let x = slider_transform.translation.x;
+            let width = slider_node.size.x;
+            let offset = width * 0.5;
+            let normalized_x = (mouse_xy.x + offset - x) / width;
+            slider.value = (normalized_x * (slider.max - slider.min) + slider.min)
+                .clamp(slider.min, slider.max);
+        }
+    }
+}
+
+fn slider_button_position_update(
+    mut button_query: Query<(&mut Style, &Node), With<SliderButton>>,
+    slider_query: Query<(&Slider, &Node, &Children), Changed<Slider>>,
+) {
+    for (slider, slider_node, children) in slider_query.iter() {
+        let (mut button_style, button_node) = button_query.get_mut(children[0]).unwrap();
+        let normalized_x = (slider.value - slider.min) / (slider.max - slider.min);
+        let x = normalized_x * slider_node.size.x - button_node.size.x * 0.5;
+        button_style.position.left = Val::Px(x);
     }
 }
