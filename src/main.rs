@@ -20,6 +20,12 @@ const HALF_SIZE: f32 = 500.;
 
 struct SliderButton;
 struct SliderText;
+struct SliderCoherenceRange;
+struct SliderCoherenceStrength;
+struct SliderSeparationRange;
+struct SliderSeparationStrength;
+struct SliderAlignmentRange;
+struct SliderAlignmentStrength;
 
 #[derive(Clone, Debug)]
 struct Slider {
@@ -261,58 +267,67 @@ fn setup_ui(
         })
         .insert(FpsText);
 
-    commands.spawn_slider(
-        &mut materials,
-        &asset_server,
-        0.001,
-        0.2,
-        vec2(20.0, 600.0),
-        "coherence strength",
-    );
-    commands.spawn_slider(
-        &mut materials,
-        &asset_server,
-        50.0,
-        150.0,
-        vec2(20.0, 800.0),
-        "coherence range",
-    );
-    commands.spawn_slider(
-        &mut materials,
-        &asset_server,
-        0.001,
-        0.2,
-        vec2(360.0, 600.0),
-        "separation strength",
-    );
-    commands.spawn_slider(
-        &mut materials,
-        &asset_server,
-        50.0,
-        150.0,
-        vec2(360.0, 800.0),
-        "separation range",
-    );
-    commands.spawn_slider(
-        &mut materials,
-        &asset_server,
-        0.001,
-        0.1,
-        vec2(700.0, 600.0),
-        "alignment strength",
-    );
-    commands.spawn_slider(
-        &mut materials,
-        &asset_server,
-        50.0,
-        150.0,
-        vec2(700.0, 800.0),
-        "alignment range",
-    );
+    commands
+        .spawn_slider(
+            &mut materials,
+            &asset_server,
+            0.001,
+            0.2,
+            vec2(20.0, 600.0),
+            "coherence strength",
+        )
+        .insert(SliderCoherenceStrength);
+    commands
+        .spawn_slider(
+            &mut materials,
+            &asset_server,
+            50.0,
+            150.0,
+            vec2(20.0, 800.0),
+            "coherence range",
+        )
+        .insert(SliderCoherenceRange);
+    commands
+        .spawn_slider(
+            &mut materials,
+            &asset_server,
+            0.001,
+            0.2,
+            vec2(360.0, 600.0),
+            "separation strength",
+        )
+        .insert(SliderSeparationStrength);
+    commands
+        .spawn_slider(
+            &mut materials,
+            &asset_server,
+            10.0,
+            100.0,
+            vec2(360.0, 800.0),
+            "separation range",
+        )
+        .insert(SliderSeparationRange);
+    commands
+        .spawn_slider(
+            &mut materials,
+            &asset_server,
+            0.001,
+            0.1,
+            vec2(700.0, 600.0),
+            "alignment strength",
+        )
+        .insert(SliderAlignmentStrength);
+    commands
+        .spawn_slider(
+            &mut materials,
+            &asset_server,
+            20.0,
+            150.0,
+            vec2(700.0, 800.0),
+            "alignment range",
+        )
+        .insert(SliderAlignmentRange);
 }
-
-const COHERENCE_DISTANCE: f32 = 100.0;
-const SEPARATION_DISTANCE: f32 = 15.0;
 
 fn setup_boids(
     mut commands: Commands,
@@ -350,13 +365,15 @@ fn setup_boids(
 fn coherence_update(
     mut boids: Query<(Entity, &Transform, &mut Coherence)>,
     other_boids: Query<(Entity, &Transform)>,
+    slider_query: Query<&Slider, With<SliderCoherenceRange>>,
 ) {
     for (entity, transform, mut coherence) in boids.iter_mut() {
         let mut new_center = Vec2::ZERO;
         let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
-            if other_entity != entity && distance < COHERENCE_DISTANCE {
+            let slider = slider_query.single().expect("only one slider");
+            if other_entity != entity && distance < slider.value {
                 new_center += Vec2::from(other_transform.translation);
                 count += 1.0;
             }
@@ -372,13 +389,15 @@ fn coherence_update(
 fn separation_update(
     mut boids: Query<(Entity, &Transform, &mut Separation)>,
     other_boids: Query<(Entity, &Transform)>,
+    slider_query: Query<&Slider, With<SliderSeparationRange>>,
 ) {
     for (entity, transform, mut separation) in boids.iter_mut() {
         let mut new_center = Vec2::ZERO;
         for (other_entity, other_transform) in other_boids.iter() {
             let offset = transform.translation - other_transform.translation;
             let distance = offset.length();
-            if other_entity != entity && distance <= SEPARATION_DISTANCE {
+            let slider = slider_query.single().expect("only one slider");
+            if other_entity != entity && distance <= slider.value {
                 new_center += Vec2::from(offset);
             }
         }
@@ -389,14 +408,16 @@ fn separation_update(
 fn alignment_update(
     mut boids: Query<(Entity, &Transform, &mut Alignment)>,
     other_boids: Query<(Entity, &Transform, &Velocity)>,
+    slider_query: Query<&Slider, With<SliderAlignmentRange>>,
 ) {
     for (entity, transform, mut alignment) in boids.iter_mut() {
         let mut new_velocity = Vec2::ZERO;
         let mut count: f32 = 0.0;
         for (other_entity, other_transform, other_velocity) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
-            if other_entity != entity && distance < COHERENCE_DISTANCE {
-                new_velocity += other_velocity.direction * distance / COHERENCE_DISTANCE;
+            let slider = slider_query.single().expect("only one slider");
+            if other_entity != entity && distance < slider.value {
+                new_velocity += other_velocity.direction * distance / slider.value;
                 count += 1.0;
             }
         }
@@ -425,19 +446,24 @@ fn final_update(
         &mut Velocity,
     )>,
     time: Res<Time>,
+    coherence_slider_query: Query<&Slider, With<SliderCoherenceStrength>>,
+    separation_slider_query: Query<&Slider, With<SliderSeparationStrength>>,
+    alignment_slider_query: Query<&Slider, With<SliderAlignmentStrength>>,
 ) {
-    const SEPARATION_FACTOR: f32 = 0.1;
-    const COHERENCE_FACTOR: f32 = 0.005;
-    const ALIGNMENT_FACTOR: f32 = 0.05;
     const MAX_SPEED: f32 = 100.0;
     let delta: f32 = (time.delta().as_millis()) as f32 / 1000.0;
     for (mut transform, coherence, separation, alignment, mut velocity) in boids.iter_mut() {
         let current_location = vec2(transform.translation.x, transform.translation.y);
         let coherence_change = coherence.center - current_location;
         let separation_change = separation.center;
-        velocity.direction += separation_change * SEPARATION_FACTOR
-            + coherence_change * COHERENCE_FACTOR
-            + alignment.direction * ALIGNMENT_FACTOR;
+        let coherence_slider = coherence_slider_query.single().expect("missing coherence");
+        let separation_slider = separation_slider_query
+            .single()
+            .expect("missing separation");
+        let alignment_slider = alignment_slider_query.single().expect("missing alignment");
+        velocity.direction += separation_change * separation_slider.value
+            + coherence_change * coherence_slider.value
+            + alignment.direction * alignment_slider.value;
 
         //limit max speed
         if velocity.direction.length() > MAX_SPEED {
