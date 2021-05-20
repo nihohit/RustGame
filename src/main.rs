@@ -19,6 +19,7 @@ struct Calculations;
 const HALF_SIZE: f32 = 500.;
 
 struct SliderButton;
+struct SliderText;
 
 #[derive(Clone, Debug)]
 struct Slider {
@@ -75,6 +76,11 @@ trait SpawnSlider<'a> {
     fn spawn_slider<'b>(
         &'b mut self,
         materials: &mut Assets<ColorMaterial>,
+        asset_server: &Res<AssetServer>,
+        min: f32,
+        max: f32,
+        position: Vec2,
+        title: &str,
     ) -> EntityCommands<'a, 'b>;
 }
 
@@ -82,13 +88,18 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
     fn spawn_slider<'b>(
         &'b mut self,
         materials: &mut Assets<ColorMaterial>,
+        asset_server: &Res<AssetServer>,
+        min: f32,
+        max: f32,
+        position: Vec2,
+        title: &str,
     ) -> EntityCommands<'a, 'b> {
         let mut entity_commands = self.spawn_bundle(SliderBundle {
             style: Style {
-                size: Size::new(Val::Px(300.0), Val::Px(20.0)),
+                size: Size::new(Val::Px(250.0), Val::Px(20.0)),
                 position: Rect {
-                    left: Val::Px(300.0),
-                    top: Val::Px(100.0),
+                    left: Val::Px(position.x),
+                    top: Val::Px(position.y),
                     ..Default::default()
                 },
                 position_type: PositionType::Absolute,
@@ -96,6 +107,11 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
                 ..Default::default()
             },
             material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            slider: Slider {
+                min: min,
+                max: max,
+                value: min + (max - min) * 0.5,
+            },
             ..Default::default()
         });
         entity_commands.with_children(|parent| {
@@ -116,6 +132,43 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
                     ..Default::default()
                 })
                 .insert(SliderButton);
+            parent
+                .spawn_bundle(TextBundle {
+                    style: Style {
+                        align_self: AlignSelf::Center,
+                        display: Display::None,
+                        position: Rect {
+                            top: Val::Px(1000.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                    // Use `Text` directly
+                    text: Text {
+                        // Construct a `Vec` of `TextSection`s
+                        sections: vec![
+                            TextSection {
+                                value: title.to_string(),
+                                style: TextStyle {
+                                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                    font_size: 20.0,
+                                    color: Color::WHITE,
+                                },
+                            },
+                            TextSection {
+                                value: "".to_string(),
+                                style: TextStyle {
+                                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                    font_size: 20.0,
+                                    color: Color::GOLD,
+                                },
+                            },
+                        ],
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .insert(SliderText);
         });
 
         return entity_commands;
@@ -208,7 +261,54 @@ fn setup_ui(
         })
         .insert(FpsText);
 
-    commands.spawn_slider(&mut materials);
+    commands.spawn_slider(
+        &mut materials,
+        &asset_server,
+        0.001,
+        0.2,
+        vec2(20.0, 600.0),
+        "coherence strength",
+    );
+    commands.spawn_slider(
+        &mut materials,
+        &asset_server,
+        50.0,
+        150.0,
+        vec2(20.0, 800.0),
+        "coherence range",
+    );
+    commands.spawn_slider(
+        &mut materials,
+        &asset_server,
+        0.001,
+        0.2,
+        vec2(360.0, 600.0),
+        "separation strength",
+    );
+    commands.spawn_slider(
+        &mut materials,
+        &asset_server,
+        50.0,
+        150.0,
+        vec2(360.0, 800.0),
+        "separation range",
+    );
+    commands.spawn_slider(
+        &mut materials,
+        &asset_server,
+        0.001,
+        0.1,
+        vec2(700.0, 600.0),
+        "alignment strength",
+    );
+    commands.spawn_slider(
+        &mut materials,
+        &asset_server,
+        50.0,
+        150.0,
+        vec2(700.0, 800.0),
+        "alignment range",
+    );
 }
 
 const COHERENCE_DISTANCE: f32 = 100.0;
@@ -414,6 +514,7 @@ fn slider_update(
 
 fn slider_button_position_update(
     mut button_query: Query<(&mut Style, &Node), With<SliderButton>>,
+    mut text_query: Query<&mut Text, With<SliderText>>,
     slider_query: Query<(&Slider, &Node, &Children), Changed<Slider>>,
 ) {
     for (slider, slider_node, children) in slider_query.iter() {
@@ -421,5 +522,8 @@ fn slider_button_position_update(
         let normalized_x = (slider.value - slider.min) / (slider.max - slider.min);
         let x = normalized_x * slider_node.size.x - button_node.size.x * 0.5;
         button_style.position.left = Val::Px(x);
+
+        let mut text = text_query.get_mut(children[1]).unwrap();
+        text.sections[1].value = format!("{:.}", slider.value);
     }
 }
