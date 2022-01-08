@@ -46,13 +46,13 @@ struct SliderBundle {
     pub focus_policy: FocusPolicy,
     pub mesh: Handle<Mesh>, // TODO: maybe abstract this out
     pub material: Handle<ColorMaterial>,
-
     pub transform: Transform,
     pub global_transform: GlobalTransform,
 }
 
 impl Default for SliderBundle {
     fn default() -> Self {
+        let quad_handle = HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 14240461981130137526);
         SliderBundle {
             slider: Slider {
                 min: 0f32,
@@ -66,6 +66,7 @@ impl Default for SliderBundle {
             material: Default::default(),
             transform: Default::default(),
             global_transform: Default::default(),
+            mesh: quad_handle.typed(),
         }
     }
 }
@@ -142,7 +143,7 @@ impl<'a, 'w> SpawnSlider<'a> for Commands<'a, 'w> {
                         ..Default::default()
                     },
                     focus_policy: FocusPolicy::Pass,
-                    material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
+                    // material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
                     ..Default::default()
                 })
                 .insert(SliderButton);
@@ -347,7 +348,6 @@ fn setup_boids(
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let boid = asset_server.load("textures/Arrow.png");
     const BOID_COUNT: i16 = 200;
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
@@ -360,7 +360,7 @@ fn setup_boids(
         );
         commands
             .spawn_bundle(SpriteBundle {
-                material: materials.add(boid.clone().into()),
+                texture: asset_server.load("textures/Arrow.png"),
                 transform: transform,
                 ..Default::default()
             })
@@ -385,9 +385,10 @@ fn coherence_update(
         let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
-            let slider = slider_query.single().expect("only one slider");
+            let slider = slider_query.single();
             if other_entity != entity && distance < slider.value {
-                new_center += Vec2::from(other_transform.translation);
+                new_center +=
+                    Vec2::new(other_transform.translation.x, other_transform.translation.y);
                 count += 1.0;
             }
         }
@@ -409,9 +410,9 @@ fn separation_update(
         for (other_entity, other_transform) in other_boids.iter() {
             let offset = transform.translation - other_transform.translation;
             let distance = offset.length();
-            let slider = slider_query.single().expect("only one slider");
+            let slider = slider_query.single();
             if other_entity != entity && distance <= slider.value {
-                new_center += Vec2::from(offset);
+                new_center += Vec2::new(offset.x, offset.y);
             }
         }
         separation.center = new_center;
@@ -428,7 +429,7 @@ fn alignment_update(
         let mut count: f32 = 0.0;
         for (other_entity, other_transform, other_velocity) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
-            let slider = slider_query.single().expect("only one slider");
+            let slider = slider_query.single();
             if other_entity != entity && distance < slider.value {
                 new_velocity += other_velocity.direction * distance / slider.value;
                 count += 1.0;
@@ -469,11 +470,9 @@ fn final_update(
         let current_location = vec2(transform.translation.x, transform.translation.y);
         let coherence_change = coherence.center - current_location;
         let separation_change = separation.center;
-        let coherence_slider = coherence_slider_query.single().expect("missing coherence");
-        let separation_slider = separation_slider_query
-            .single()
-            .expect("missing separation");
-        let alignment_slider = alignment_slider_query.single().expect("missing alignment");
+        let coherence_slider = coherence_slider_query.single();
+        let separation_slider = separation_slider_query.single();
+        let alignment_slider = alignment_slider_query.single();
         velocity.direction += separation_change * separation_slider.value
             + coherence_change * coherence_slider.value
             + alignment.direction * alignment_slider.value;
