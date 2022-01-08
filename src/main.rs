@@ -4,13 +4,8 @@ use bevy::ecs::system::EntityCommands;
 use bevy::math::vec2;
 use bevy::prelude::*;
 use bevy::ui::*;
-use bevy_render::{
-    draw::Draw,
-    mesh::Mesh,
-    pipeline::{RenderPipeline, RenderPipelines},
-    prelude::Visible,
-};
-use bevy_sprite::{ColorMaterial, QUAD_HANDLE};
+use bevy_render::mesh::Mesh;
+use bevy_sprite::ColorMaterial;
 use rand::prelude::*;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
@@ -18,23 +13,31 @@ struct Calculations;
 
 const HALF_SIZE: f32 = 500.;
 
+#[derive(Component)]
 struct SliderButton;
+#[derive(Component)]
 struct SliderText;
+#[derive(Component)]
 struct SliderCoherenceRange;
+#[derive(Component)]
 struct SliderCoherenceStrength;
+#[derive(Component)]
 struct SliderSeparationRange;
+#[derive(Component)]
 struct SliderSeparationStrength;
+#[derive(Component)]
 struct SliderAlignmentRange;
+#[derive(Component)]
 struct SliderAlignmentStrength;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Component)]
 struct Slider {
     min: f32,
     max: f32,
     value: f32,
 }
 
-#[derive(Bundle, Clone, Debug)]
+#[derive(Bundle, Clone, Debug, Component)]
 struct SliderBundle {
     pub node: Node,
     pub slider: Slider,
@@ -43,9 +46,7 @@ struct SliderBundle {
     pub focus_policy: FocusPolicy,
     pub mesh: Handle<Mesh>, // TODO: maybe abstract this out
     pub material: Handle<ColorMaterial>,
-    pub draw: Draw,
-    pub visible: Visible,
-    pub render_pipelines: RenderPipelines,
+
     pub transform: Transform,
     pub global_transform: GlobalTransform,
 }
@@ -58,20 +59,11 @@ impl Default for SliderBundle {
                 max: 1f32,
                 value: 0f32,
             },
-            mesh: QUAD_HANDLE.typed(),
-            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                UI_PIPELINE_HANDLE.typed(),
-            )]),
             interaction: Default::default(),
             focus_policy: Default::default(),
             node: Default::default(),
             style: Default::default(),
             material: Default::default(),
-            draw: Default::default(),
-            visible: Visible {
-                is_transparent: true,
-                ..Default::default()
-            },
             transform: Default::default(),
             global_transform: Default::default(),
         }
@@ -79,7 +71,7 @@ impl Default for SliderBundle {
 }
 
 trait SpawnSlider<'a> {
-    fn spawn_slider<'b>(
+    fn spawn_slider<'b, 'w>(
         &'b mut self,
         materials: &mut Assets<ColorMaterial>,
         asset_server: &Res<AssetServer>,
@@ -87,10 +79,25 @@ trait SpawnSlider<'a> {
         max: f32,
         position: Vec2,
         title: &str,
-    ) -> EntityCommands<'a, 'b>;
+    ) -> EntityCommands<'a, 'b, 'w>;
 }
 
-impl<'a> SpawnSlider<'a> for Commands<'a> {
+fn update_slider_button(
+    button_style: &mut Style,
+    button_node: &Node,
+    slider: &Slider,
+    slider_node: &Node,
+) {
+    let normalized_x = (slider.value - slider.min) / (slider.max - slider.min);
+    let x = normalized_x * slider_node.size.x - button_node.size.x * 0.5;
+    button_style.position.left = Val::Px(x);
+}
+
+fn update_slider_text(text: &mut Text, slider: &Slider) {
+    text.sections[1].value = format!("{:.}", slider.value);
+}
+
+impl<'a, 'w> SpawnSlider<'a> for Commands<'a, 'w> {
     fn spawn_slider<'b>(
         &'b mut self,
         materials: &mut Assets<ColorMaterial>,
@@ -99,7 +106,7 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
         max: f32,
         position: Vec2,
         title: &str,
-    ) -> EntityCommands<'a, 'b> {
+    ) -> EntityCommands<'a, 'b, 'w> {
         let mut entity_commands = self.spawn_bundle(SliderBundle {
             style: Style {
                 size: Size::new(Val::Px(250.0), Val::Px(20.0)),
@@ -134,6 +141,7 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
                         position_type: PositionType::Absolute,
                         ..Default::default()
                     },
+                    focus_policy: FocusPolicy::Pass,
                     material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
                     ..Default::default()
                 })
@@ -183,7 +191,7 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
 
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
 fn main() {
-    App::build()
+    App::new()
         .insert_resource(WindowDescriptor {
             title: "I am a window!".to_string(),
             width: HALF_SIZE * 2.0,
@@ -205,23 +213,28 @@ fn main() {
         .run();
 }
 
+#[derive(Component)]
 struct Coherence {
     center: Vec2,
 }
 
+#[derive(Component)]
 struct Separation {
     center: Vec2,
 }
 
+#[derive(Component)]
 struct Alignment {
     direction: Vec2,
 }
 
+#[derive(Component)]
 struct Velocity {
     direction: Vec2,
 }
 
 // A unit struct to help identify the FPS UI component, since there may be many Text components
+#[derive(Component)]
 struct FpsText;
 
 fn setup_ui(
@@ -504,16 +517,13 @@ fn text_update(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<F
 }
 
 fn slider_update(
-    mut slider_query: Query<
-        (
-            &Interaction,
-            &mut Slider,
-            &GlobalTransform,
-            &Node,
-            &Children,
-        ),
-        Changed<Interaction>,
-    >,
+    mut slider_query: Query<(
+        &Interaction,
+        &mut Slider,
+        &GlobalTransform,
+        &Node,
+        &Children,
+    )>,
     button_query: Query<&Interaction, With<SliderButton>>,
     windows: Res<Windows>,
 ) {
@@ -545,11 +555,9 @@ fn slider_button_position_update(
 ) {
     for (slider, slider_node, children) in slider_query.iter() {
         let (mut button_style, button_node) = button_query.get_mut(children[0]).unwrap();
-        let normalized_x = (slider.value - slider.min) / (slider.max - slider.min);
-        let x = normalized_x * slider_node.size.x - button_node.size.x * 0.5;
-        button_style.position.left = Val::Px(x);
+        update_slider_button(&mut *button_style, button_node, slider, slider_node);
 
         let mut text = text_query.get_mut(children[1]).unwrap();
-        text.sections[1].value = format!("{:.}", slider.value);
+        update_slider_text(&mut *text, slider);
     }
 }
