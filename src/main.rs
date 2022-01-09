@@ -4,13 +4,6 @@ use bevy::ecs::system::EntityCommands;
 use bevy::math::vec2;
 use bevy::prelude::*;
 use bevy::ui::*;
-use bevy_render::{
-    draw::Draw,
-    mesh::Mesh,
-    pipeline::{RenderPipeline, RenderPipelines},
-    prelude::Visible,
-};
-use bevy_sprite::{ColorMaterial, QUAD_HANDLE};
 use rand::prelude::*;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
@@ -18,36 +11,43 @@ struct Calculations;
 
 const HALF_SIZE: f32 = 500.;
 
+#[derive(Component)]
 struct SliderButton;
+#[derive(Component)]
 struct SliderText;
+#[derive(Component)]
 struct SliderCoherenceRange;
+#[derive(Component)]
 struct SliderCoherenceStrength;
+#[derive(Component)]
 struct SliderSeparationRange;
+#[derive(Component)]
 struct SliderSeparationStrength;
+#[derive(Component)]
 struct SliderAlignmentRange;
+#[derive(Component)]
 struct SliderAlignmentStrength;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Component)]
 struct Slider {
     min: f32,
     max: f32,
     value: f32,
 }
 
+// Copied from ButtonBundle
 #[derive(Bundle, Clone, Debug)]
 struct SliderBundle {
-    pub node: Node,
     pub slider: Slider,
+    pub node: Node,
     pub style: Style,
     pub interaction: Interaction,
     pub focus_policy: FocusPolicy,
-    pub mesh: Handle<Mesh>, // TODO: maybe abstract this out
-    pub material: Handle<ColorMaterial>,
-    pub draw: Draw,
-    pub visible: Visible,
-    pub render_pipelines: RenderPipelines,
+    pub color: UiColor,
+    pub image: UiImage,
     pub transform: Transform,
     pub global_transform: GlobalTransform,
+    pub visibility: Visibility,
 }
 
 impl Default for SliderBundle {
@@ -58,48 +58,54 @@ impl Default for SliderBundle {
                 max: 1f32,
                 value: 0f32,
             },
-            mesh: QUAD_HANDLE.typed(),
-            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                UI_PIPELINE_HANDLE.typed(),
-            )]),
             interaction: Default::default(),
             focus_policy: Default::default(),
             node: Default::default(),
             style: Default::default(),
-            material: Default::default(),
-            draw: Default::default(),
-            visible: Visible {
-                is_transparent: true,
-                ..Default::default()
-            },
+            color: Default::default(),
+            image: Default::default(),
             transform: Default::default(),
             global_transform: Default::default(),
+            visibility: Default::default(),
         }
     }
 }
 
-trait SpawnSlider<'a> {
-    fn spawn_slider<'b>(
-        &'b mut self,
-        materials: &mut Assets<ColorMaterial>,
+trait SpawnSlider<'w, 's> {
+    fn spawn_slider<'a>(
+        &'a mut self,
         asset_server: &Res<AssetServer>,
         min: f32,
         max: f32,
         position: Vec2,
         title: &str,
-    ) -> EntityCommands<'a, 'b>;
+    ) -> EntityCommands<'w, 's, 'a>;
 }
 
-impl<'a> SpawnSlider<'a> for Commands<'a> {
-    fn spawn_slider<'b>(
-        &'b mut self,
-        materials: &mut Assets<ColorMaterial>,
+fn update_slider_button(
+    button_style: &mut Style,
+    button_node: &Node,
+    slider: &Slider,
+    slider_node: &Node,
+) {
+    let normalized_x = (slider.value - slider.min) / (slider.max - slider.min);
+    let x = normalized_x * slider_node.size.x - button_node.size.x * 0.5;
+    button_style.position.left = Val::Px(x);
+}
+
+fn update_slider_text(text: &mut Text, slider: &Slider) {
+    text.sections[1].value = format!("{:.}", slider.value);
+}
+
+impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
+    fn spawn_slider<'a>(
+        &'a mut self,
         asset_server: &Res<AssetServer>,
         min: f32,
         max: f32,
         position: Vec2,
         title: &str,
-    ) -> EntityCommands<'a, 'b> {
+    ) -> EntityCommands<'w, 's, 'a> {
         let mut entity_commands = self.spawn_bundle(SliderBundle {
             style: Style {
                 size: Size::new(Val::Px(250.0), Val::Px(20.0)),
@@ -112,7 +118,7 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
                 justify_content: JustifyContent::Center,
                 ..Default::default()
             },
-            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            color: Color::rgb(1.0, 0.0, 0.0).into(),
             slider: Slider {
                 min: min,
                 max: max,
@@ -134,7 +140,8 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
                         position_type: PositionType::Absolute,
                         ..Default::default()
                     },
-                    material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
+                    focus_policy: FocusPolicy::Pass,
+                    color: Color::rgb(0.0, 1.0, 0.0).into(),
                     ..Default::default()
                 })
                 .insert(SliderButton);
@@ -142,11 +149,11 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
                 .spawn_bundle(TextBundle {
                     style: Style {
                         align_self: AlignSelf::Center,
-                        display: Display::None,
                         position: Rect {
-                            top: Val::Px(1000.0),
+                            top: Val::Px(50.0),
                             ..Default::default()
                         },
+                        position_type: PositionType::Absolute,
                         ..Default::default()
                     },
                     // Use `Text` directly
@@ -154,7 +161,7 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
                         // Construct a `Vec` of `TextSection`s
                         sections: vec![
                             TextSection {
-                                value: title.to_string(),
+                                value: title.to_string() + " ",
                                 style: TextStyle {
                                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                                     font_size: 20.0,
@@ -183,7 +190,7 @@ impl<'a> SpawnSlider<'a> for Commands<'a> {
 
 /// This example illustrates how to create text and update it in a system. It displays the current FPS in the upper left hand corner.
 fn main() {
-    App::build()
+    App::new()
         .insert_resource(WindowDescriptor {
             title: "I am a window!".to_string(),
             width: HALF_SIZE * 2.0,
@@ -193,41 +200,45 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_startup_system(setup_boids.system())
-        .add_startup_system(setup_ui.system())
-        .add_system(coherence_update.system().label(Calculations))
-        .add_system(separation_update.system().label(Calculations))
-        .add_system(alignment_update.system().label(Calculations))
-        .add_system(text_update.system())
-        .add_system(slider_update.system().label(Calculations))
-        .add_system(final_update.system().after(Calculations))
-        .add_system(slider_button_position_update.system().after(Calculations))
+        .add_startup_system(setup_boids)
+        .add_startup_system(setup_ui)
+        .add_system(coherence_update.label(Calculations))
+        .add_system(separation_update.label(Calculations))
+        .add_system(alignment_update.label(Calculations))
+        .add_system(text_update)
+        .add_system(slider_update.label(Calculations))
+        .add_system(final_update.after(Calculations))
+        .add_system(slider_button_position_update.after(Calculations))
         .run();
 }
 
+#[derive(Component)]
 struct Coherence {
     center: Vec2,
 }
 
+#[derive(Component)]
 struct Separation {
     center: Vec2,
 }
 
+#[derive(Component)]
 struct Alignment {
     direction: Vec2,
 }
 
+#[derive(Component)]
 struct Velocity {
     direction: Vec2,
 }
 
 // A unit struct to help identify the FPS UI component, since there may be many Text components
+#[derive(Component)]
 struct FpsText;
 
 fn setup_ui(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     // UI camera
     commands.spawn_bundle(UiCameraBundle::default());
@@ -237,7 +248,12 @@ fn setup_ui(
         .spawn_bundle(TextBundle {
             style: Style {
                 align_self: AlignSelf::Center,
-                display: Display::None,
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    bottom: Val::Px(5.0),
+                    left: Val::Px(15.0),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             // Use `Text` directly
@@ -269,7 +285,6 @@ fn setup_ui(
 
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             0.001,
             0.2,
@@ -279,7 +294,6 @@ fn setup_ui(
         .insert(SliderCoherenceStrength);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             50.0,
             150.0,
@@ -289,7 +303,6 @@ fn setup_ui(
         .insert(SliderCoherenceRange);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             0.001,
             0.2,
@@ -299,7 +312,6 @@ fn setup_ui(
         .insert(SliderSeparationStrength);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             10.0,
             100.0,
@@ -309,7 +321,6 @@ fn setup_ui(
         .insert(SliderSeparationRange);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             0.001,
             0.1,
@@ -319,7 +330,6 @@ fn setup_ui(
         .insert(SliderAlignmentStrength);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             20.0,
             150.0,
@@ -329,16 +339,12 @@ fn setup_ui(
         .insert(SliderAlignmentRange);
 }
 
-fn setup_boids(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let boid = asset_server.load("textures/Arrow.png");
+fn setup_boids(mut commands: Commands, asset_server: Res<AssetServer>) {
     const BOID_COUNT: i16 = 200;
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let mut rng = thread_rng();
+    let texture: Handle<Image> = asset_server.load("textures/Arrow.png");
     for _ in 0..BOID_COUNT {
         let transform = Transform::from_xyz(
             rng.gen_range(-HALF_SIZE..HALF_SIZE),
@@ -347,7 +353,7 @@ fn setup_boids(
         );
         commands
             .spawn_bundle(SpriteBundle {
-                material: materials.add(boid.clone().into()),
+                texture: texture.clone(),
                 transform: transform,
                 ..Default::default()
             })
@@ -372,9 +378,10 @@ fn coherence_update(
         let mut count: f32 = 0.0;
         for (other_entity, other_transform) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
-            let slider = slider_query.single().expect("only one slider");
+            let slider = slider_query.single();
             if other_entity != entity && distance < slider.value {
-                new_center += Vec2::from(other_transform.translation);
+                new_center +=
+                    Vec2::new(other_transform.translation.x, other_transform.translation.y);
                 count += 1.0;
             }
         }
@@ -396,9 +403,9 @@ fn separation_update(
         for (other_entity, other_transform) in other_boids.iter() {
             let offset = transform.translation - other_transform.translation;
             let distance = offset.length();
-            let slider = slider_query.single().expect("only one slider");
+            let slider = slider_query.single();
             if other_entity != entity && distance <= slider.value {
-                new_center += Vec2::from(offset);
+                new_center += Vec2::new(offset.x, offset.y);
             }
         }
         separation.center = new_center;
@@ -415,7 +422,7 @@ fn alignment_update(
         let mut count: f32 = 0.0;
         for (other_entity, other_transform, other_velocity) in other_boids.iter() {
             let distance = transform.translation.distance(other_transform.translation);
-            let slider = slider_query.single().expect("only one slider");
+            let slider = slider_query.single();
             if other_entity != entity && distance < slider.value {
                 new_velocity += other_velocity.direction * distance / slider.value;
                 count += 1.0;
@@ -456,11 +463,9 @@ fn final_update(
         let current_location = vec2(transform.translation.x, transform.translation.y);
         let coherence_change = coherence.center - current_location;
         let separation_change = separation.center;
-        let coherence_slider = coherence_slider_query.single().expect("missing coherence");
-        let separation_slider = separation_slider_query
-            .single()
-            .expect("missing separation");
-        let alignment_slider = alignment_slider_query.single().expect("missing alignment");
+        let coherence_slider = coherence_slider_query.single();
+        let separation_slider = separation_slider_query.single();
+        let alignment_slider = alignment_slider_query.single();
         velocity.direction += separation_change * separation_slider.value
             + coherence_change * coherence_slider.value
             + alignment.direction * alignment_slider.value;
@@ -497,23 +502,20 @@ fn text_update(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<F
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {
                 // Update the value of the second section
-                text.sections[1].value = format!("{:.0}", 999.0 - average);
+                text.sections[1].value = format!("{:.0}", average);
             }
         }
     }
 }
 
 fn slider_update(
-    mut slider_query: Query<
-        (
-            &Interaction,
-            &mut Slider,
-            &GlobalTransform,
-            &Node,
-            &Children,
-        ),
-        Changed<Interaction>,
-    >,
+    mut slider_query: Query<(
+        &Interaction,
+        &mut Slider,
+        &GlobalTransform,
+        &Node,
+        &Children,
+    )>,
     button_query: Query<&Interaction, With<SliderButton>>,
     windows: Res<Windows>,
 ) {
@@ -545,11 +547,9 @@ fn slider_button_position_update(
 ) {
     for (slider, slider_node, children) in slider_query.iter() {
         let (mut button_style, button_node) = button_query.get_mut(children[0]).unwrap();
-        let normalized_x = (slider.value - slider.min) / (slider.max - slider.min);
-        let x = normalized_x * slider_node.size.x - button_node.size.x * 0.5;
-        button_style.position.left = Val::Px(x);
+        update_slider_button(&mut *button_style, button_node, slider, slider_node);
 
         let mut text = text_query.get_mut(children[1]).unwrap();
-        text.sections[1].value = format!("{:.}", slider.value);
+        update_slider_text(&mut *text, slider);
     }
 }
