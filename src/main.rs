@@ -4,8 +4,6 @@ use bevy::ecs::system::EntityCommands;
 use bevy::math::vec2;
 use bevy::prelude::*;
 use bevy::ui::*;
-use bevy_render::mesh::Mesh;
-use bevy_sprite::ColorMaterial;
 use rand::prelude::*;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
@@ -37,7 +35,7 @@ struct Slider {
     value: f32,
 }
 
-#[derive(Bundle, Clone, Debug, Component)]
+#[derive(Bundle, Clone, Debug)]
 struct SliderBundle {
     pub node: Node,
     pub slider: Slider,
@@ -151,11 +149,11 @@ impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
                 .spawn_bundle(TextBundle {
                     style: Style {
                         align_self: AlignSelf::Center,
-                        display: Display::None,
                         position: Rect {
-                            top: Val::Px(1000.0),
+                            top: Val::Px(-50.0),
                             ..Default::default()
                         },
+                        position_type: PositionType::Absolute,
                         ..Default::default()
                     },
                     // Use `Text` directly
@@ -163,7 +161,7 @@ impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
                         // Construct a `Vec` of `TextSection`s
                         sections: vec![
                             TextSection {
-                                value: title.to_string(),
+                                value: title.to_string() + " ",
                                 style: TextStyle {
                                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                                     font_size: 20.0,
@@ -202,15 +200,15 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_startup_system(setup_boids.system())
-        .add_startup_system(setup_ui.system())
-        .add_system(coherence_update.system().label(Calculations))
-        .add_system(separation_update.system().label(Calculations))
-        .add_system(alignment_update.system().label(Calculations))
-        .add_system(text_update.system())
-        .add_system(slider_update.system().label(Calculations))
-        .add_system(final_update.system().after(Calculations))
-        .add_system(slider_button_position_update.system().after(Calculations))
+        .add_startup_system(setup_boids)
+        .add_startup_system(setup_ui)
+        .add_system(coherence_update.label(Calculations))
+        .add_system(separation_update.label(Calculations))
+        .add_system(alignment_update.label(Calculations))
+        .add_system(text_update)
+        .add_system(slider_update.label(Calculations))
+        .add_system(final_update.after(Calculations))
+        .add_system(slider_button_position_update.after(Calculations))
         .run();
 }
 
@@ -251,7 +249,12 @@ fn setup_ui(
         .spawn_bundle(TextBundle {
             style: Style {
                 align_self: AlignSelf::Center,
-                display: Display::None,
+                position_type: PositionType::Absolute,
+                position: Rect {
+                    bottom: Val::Px(5.0),
+                    left: Val::Px(15.0),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
             // Use `Text` directly
@@ -506,7 +509,7 @@ fn text_update(diagnostics: Res<Diagnostics>, mut query: Query<&mut Text, With<F
         if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(average) = fps.average() {
                 // Update the value of the second section
-                text.sections[1].value = format!("{:.0}", 999.0 - average);
+                text.sections[1].value = format!("{:.0}", average);
             }
         }
     }

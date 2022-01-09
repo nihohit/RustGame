@@ -14,14 +14,4 @@ opt-level = 3
 
 [dependencies]
 bevy = "0.6"
-bevy_ui = "0.6"
-bevy_core = "0.6"
-bevy_text = "0.6"
-bevy_render = "0.6"
-bevy_window = "0.6"
-bevy_winit = "0.6"
-bevy_app = "0.6"
-bevy_internal = "0.6"
-bevy_sprite = "0.6"
-bevy_diagnostic = "0.6"
 rand = "0.8"
