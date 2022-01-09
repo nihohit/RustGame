@@ -35,22 +35,23 @@ struct Slider {
     value: f32,
 }
 
+// Copied from ButtonBundle
 #[derive(Bundle, Clone, Debug)]
 struct SliderBundle {
-    pub node: Node,
     pub slider: Slider,
+    pub node: Node,
     pub style: Style,
     pub interaction: Interaction,
     pub focus_policy: FocusPolicy,
-    // pub mesh: Handle<Mesh>, // TODO: maybe abstract this out
-    pub material: Handle<ColorMaterial>,
+    pub color: UiColor,
+    pub image: UiImage,
     pub transform: Transform,
     pub global_transform: GlobalTransform,
+    pub visibility: Visibility,
 }
 
 impl Default for SliderBundle {
     fn default() -> Self {
-        // let quad_handle = HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 14240461981130137526);
         SliderBundle {
             slider: Slider {
                 min: 0f32,
@@ -61,10 +62,11 @@ impl Default for SliderBundle {
             focus_policy: Default::default(),
             node: Default::default(),
             style: Default::default(),
-            material: Default::default(),
+            color: Default::default(),
+            image: Default::default(),
             transform: Default::default(),
             global_transform: Default::default(),
-            // mesh: quad_handle.typed(),
+            visibility: Default::default(),
         }
     }
 }
@@ -72,7 +74,6 @@ impl Default for SliderBundle {
 trait SpawnSlider<'w, 's> {
     fn spawn_slider<'a>(
         &'a mut self,
-        materials: &mut Assets<ColorMaterial>,
         asset_server: &Res<AssetServer>,
         min: f32,
         max: f32,
@@ -99,7 +100,6 @@ fn update_slider_text(text: &mut Text, slider: &Slider) {
 impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
     fn spawn_slider<'a>(
         &'a mut self,
-        materials: &mut Assets<ColorMaterial>,
         asset_server: &Res<AssetServer>,
         min: f32,
         max: f32,
@@ -118,7 +118,7 @@ impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
                 justify_content: JustifyContent::Center,
                 ..Default::default()
             },
-            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            color: Color::rgb(1.0, 0.0, 0.0).into(),
             slider: Slider {
                 min: min,
                 max: max,
@@ -141,7 +141,7 @@ impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
                         ..Default::default()
                     },
                     focus_policy: FocusPolicy::Pass,
-                    // material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
+                    color: Color::rgb(0.0, 1.0, 0.0).into(),
                     ..Default::default()
                 })
                 .insert(SliderButton);
@@ -150,7 +150,7 @@ impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
                     style: Style {
                         align_self: AlignSelf::Center,
                         position: Rect {
-                            top: Val::Px(-50.0),
+                            top: Val::Px(50.0),
                             ..Default::default()
                         },
                         position_type: PositionType::Absolute,
@@ -239,7 +239,6 @@ struct FpsText;
 fn setup_ui(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     // UI camera
     commands.spawn_bundle(UiCameraBundle::default());
@@ -286,7 +285,6 @@ fn setup_ui(
 
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             0.001,
             0.2,
@@ -296,7 +294,6 @@ fn setup_ui(
         .insert(SliderCoherenceStrength);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             50.0,
             150.0,
@@ -306,7 +303,6 @@ fn setup_ui(
         .insert(SliderCoherenceRange);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             0.001,
             0.2,
@@ -316,7 +312,6 @@ fn setup_ui(
         .insert(SliderSeparationStrength);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             10.0,
             100.0,
@@ -326,7 +321,6 @@ fn setup_ui(
         .insert(SliderSeparationRange);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             0.001,
             0.1,
@@ -336,7 +330,6 @@ fn setup_ui(
         .insert(SliderAlignmentStrength);
     commands
         .spawn_slider(
-            &mut materials,
             &asset_server,
             20.0,
             150.0,
