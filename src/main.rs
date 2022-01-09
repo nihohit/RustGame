@@ -44,7 +44,7 @@ struct SliderBundle {
     pub style: Style,
     pub interaction: Interaction,
     pub focus_policy: FocusPolicy,
-    pub mesh: Handle<Mesh>, // TODO: maybe abstract this out
+    // pub mesh: Handle<Mesh>, // TODO: maybe abstract this out
     pub material: Handle<ColorMaterial>,
     pub transform: Transform,
     pub global_transform: GlobalTransform,
@@ -52,7 +52,7 @@ struct SliderBundle {
 
 impl Default for SliderBundle {
     fn default() -> Self {
-        let quad_handle = HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 14240461981130137526);
+        // let quad_handle = HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 14240461981130137526);
         SliderBundle {
             slider: Slider {
                 min: 0f32,
@@ -66,21 +66,21 @@ impl Default for SliderBundle {
             material: Default::default(),
             transform: Default::default(),
             global_transform: Default::default(),
-            mesh: quad_handle.typed(),
+            // mesh: quad_handle.typed(),
         }
     }
 }
 
-trait SpawnSlider<'a> {
-    fn spawn_slider<'b, 'w>(
-        &'b mut self,
+trait SpawnSlider<'w, 's> {
+    fn spawn_slider<'a>(
+        &'a mut self,
         materials: &mut Assets<ColorMaterial>,
         asset_server: &Res<AssetServer>,
         min: f32,
         max: f32,
         position: Vec2,
         title: &str,
-    ) -> EntityCommands<'a, 'b, 'w>;
+    ) -> EntityCommands<'w, 's, 'a>;
 }
 
 fn update_slider_button(
@@ -98,16 +98,16 @@ fn update_slider_text(text: &mut Text, slider: &Slider) {
     text.sections[1].value = format!("{:.}", slider.value);
 }
 
-impl<'a, 'w> SpawnSlider<'a> for Commands<'a, 'w> {
-    fn spawn_slider<'b>(
-        &'b mut self,
+impl<'w, 's> SpawnSlider<'w, 's> for Commands<'w, 's> {
+    fn spawn_slider<'a>(
+        &'a mut self,
         materials: &mut Assets<ColorMaterial>,
         asset_server: &Res<AssetServer>,
         min: f32,
         max: f32,
         position: Vec2,
         title: &str,
-    ) -> EntityCommands<'a, 'b, 'w> {
+    ) -> EntityCommands<'w, 's, 'a> {
         let mut entity_commands = self.spawn_bundle(SliderBundle {
             style: Style {
                 size: Size::new(Val::Px(250.0), Val::Px(20.0)),
@@ -343,15 +343,12 @@ fn setup_ui(
         .insert(SliderAlignmentRange);
 }
 
-fn setup_boids(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
+fn setup_boids(mut commands: Commands, asset_server: Res<AssetServer>) {
     const BOID_COUNT: i16 = 200;
 
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
     let mut rng = thread_rng();
+    let texture: Handle<Image> = asset_server.load("textures/Arrow.png");
     for _ in 0..BOID_COUNT {
         let transform = Transform::from_xyz(
             rng.gen_range(-HALF_SIZE..HALF_SIZE),
@@ -360,7 +357,7 @@ fn setup_boids(
         );
         commands
             .spawn_bundle(SpriteBundle {
-                texture: asset_server.load("textures/Arrow.png"),
+                texture: texture.clone(),
                 transform: transform,
                 ..Default::default()
             })
